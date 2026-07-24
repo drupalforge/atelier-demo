@@ -1,3 +1,28 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/atelier-lockup-dark.svg">
+    <img alt="Atelier by AIncient Labs" src="assets/atelier-lockup-light.svg" width="360">
+  </picture>
+</p>
+
+<p align="center">
+  <strong>Run your website by talking to it.</strong><br>
+  The open-source, self-hosted, AI-native CMS — built on Drupal.
+</p>
+
+<p align="center">
+  <a href="https://aincient-labs.com">Website</a> ·
+  <a href="https://github.com/aincient-labs/atelier-cms">Source (atelier-cms)</a> ·
+  <a href="https://aincient-labs.com/docs">Docs</a> ·
+  <a href="https://www.drupalforge.org/">Drupal Forge</a>
+</p>
+
+<p align="center">
+  <img alt="Atelier demo" src="assets/atelier-demo.gif" width="720">
+</p>
+
+---
+
 # Atelier — Drupal Forge (DevPanel) demo
 
 A thin DevPanel wrapper that hosts a live, throwaway demo of **Atelier** on
@@ -44,5 +69,4 @@ DevPanel registry-image config for this template. Prefer an immutable tag
   so `roles.image` is left empty and the media/Library AI-generate affordances hide
   themselves (they don't error). Full text/page building + brand *tokens* work.
 - Budget: the $1 trial ≈ "3 pages + 1 brand" on haiku-4.5.
-- Plan / rationale / decisions: `aincient-workspace/plans/forge-demo.md` (private).
-- Reference this was adapted from: `github.com/drupalforge/drupal_cms_ai_demo`.
+- Adapted from the reference [`drupalforge/drupal_cms_ai_demo`](https://github.com/drupalforge/drupal_cms_ai_demo).
