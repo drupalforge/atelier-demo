@@ -35,14 +35,54 @@ on every start, before Apache.
 |---|---|
 | `Dockerfile` | image build — appended to the action's base Dockerfile. **Holds the `ATELIER_IMAGE` pin.** |
 | `init.sh` | image build, once — installs Atelier from `config/sync` |
-| `create_quickstart.sh` | image build, after `init.sh` — bakes `dumps/db.sql.gz` |
+| `create_quickstart.sh` | image build, after `init.sh` — bakes `dumps/db.sql.gz` **and the immutable seed** |
 | `init-container.sh` | **every container start** (registry mode) |
-| `custom_package_installer.sh` | every container start, as root, before Apache |
-| `wire-ai.sh` | from both `init.sh` and `init-container.sh`; idempotent |
+| `re-config.sh` | when the container is reconfigured in DevPanel, or deployed to a host |
+| `custom_package_installer.sh` | every container start, as root, before Apache — **and the last-resort seed** |
+| `wire-ai.sh` | from `init.sh`, `init-container.sh` and `re-config.sh`; idempotent |
+| `lib.sh` | sourced by the above — logging, DB wait, `dp_ensure_site()` |
+| `doctor.sh` | **manually**, on a hosted instance, when something is wrong |
 | `settings.php` | copied over the grafted `web/sites/default/settings.php` at build time |
 | `settings.devpanel.php` | the real settings — MySQL from `DB_*`, paths, trusted hosts |
 | `warm` | cache warmer used by the init scripts |
 | `config.yml` | DevPanel git-integration hooks (deliberately does **not** run `composer install`) |
+
+## Why the seed lives at `/opt/atelier-seed/db.sql.gz`
+
+DevPanel copies the app root into a volume and mounts that volume back **over** the app
+root, and the sync excludes `.devpanel/dumps`. So the dump baked into the app root is
+**gone** by the time the served container starts. If that container also gets an empty
+database, nothing seeds the site and Drupal falls through to `/core/install.php` — a
+broken demo, and a hole, since a visitor could complete the install as their own admin.
+That is exactly what the first hosted instance did.
+
+`create_quickstart.sh` therefore also stashes the dump at **`/opt/atelier-seed/db.sql.gz`**,
+which lives in the image where no volume can shadow it. `dp_ensure_site()` in `lib.sh`
+tries, in order: that seed → the in-tree dump → a **full install from `config/sync`** (the
+grafted tree has `vendor/` and the config, so this always works) → and fails loudly if
+even that does not produce a site. It never returns success without an installed site.
+
+That guarantee is invoked from `init-container.sh`, `re-config.sh` **and**
+`custom_package_installer.sh` — the last one because it is the only hook the base image
+runs unconditionally, whichever mode the DevPanel app is set to.
+
+## Diagnosing a hosted instance
+
+Container stdout goes to Kubernetes, which we cannot read. So every script mirrors its
+output into **`$APP_ROOT/logs/`** and, on failure, leaves a **`logs/FAILED-<script>.log`**
+marker that is impossible to miss in a directory listing.
+
+From the DevPanel terminal or code-server:
+
+```bash
+.devpanel/doctor.sh      # full read-only diagnostic; also written to logs/
+ls -1t logs/             # what ran, and whether anything failed
+```
+
+`doctor.sh` checks the grafted tree, the database, Drupal's bootstrap, the ImageMagick
+toolkit, the AI wiring, and HTTP from inside the container (which catches
+`trusted_host_patterns` 400s that would also fail Kubernetes probes). It never prints the
+trial key, only whether it is set.
 
 ## Promoting a new demo version
 

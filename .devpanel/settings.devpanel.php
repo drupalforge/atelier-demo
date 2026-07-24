@@ -52,12 +52,20 @@ $settings['update_free_access'] = FALSE;
 $settings['config_exclude_modules'] = ['aincient_demo'];
 
 // --- Hosts ------------------------------------------------------------------
-if (getenv('DP_HOSTNAME')) {
-  $settings['trusted_host_patterns'][] = '^' . preg_quote(getenv('DP_HOSTNAME'), '/') . '$';
-}
-else {
-  $settings['trusted_host_patterns'][] = '.*';
-}
+// Deliberately permissive, and NOT pinned to DP_HOSTNAME alone.
+//
+// Drupal answers 400 to any request whose Host header does not match a trusted
+// pattern. Pinning to DP_HOSTNAME therefore breaks every request that does not
+// arrive through the public hostname — in particular Kubernetes readiness and
+// liveness probes, which hit the pod IP or localhost. The pod then never becomes
+// ready, the deployment fails, and *nothing* in the application logs says why:
+// verified locally, `Host: <DP_HOSTNAME>` → 200 while `Host: localhost` → 400.
+//
+// This is a throwaway public demo with no data to protect, fronted by DevPanel's
+// own ingress, so host-header restriction buys us nothing and costs us a class of
+// invisible failure. (The appliance does the same when AINCIENT_TRUSTED_HOSTS is
+// unset, and warns; here it is the intended end state.)
+$settings['trusted_host_patterns'][] = '.*';
 
 // --- Dev container ----------------------------------------------------------
 // VS Code fronts the container with a port-forwarding proxy; trust its headers so

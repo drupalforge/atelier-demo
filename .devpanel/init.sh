@@ -23,11 +23,16 @@ if [ -n "${DEBUG_SCRIPT:-}" ]; then set -x; fi
 set -eu -o pipefail
 cd "$APP_ROOT"
 
-mkdir -p logs
-LOG_FILE="logs/init-$(date +%F-%H%M%S).log"
-exec > >(tee "$LOG_FILE") 2>&1
+# shellcheck source=lib.sh
+. "$APP_ROOT/.devpanel/lib.sh"
+
+dp_start_log init
 TIMEFORMAT=%lR
 SECONDS=0
+
+# The publish action starts MySQL alongside the container without waiting for it,
+# so the install can otherwise race the database coming up.
+dp_wait_for_db
 
 # --- Verify the graft -------------------------------------------------------
 # Everything below assumes .devpanel/Dockerfile put the product tree in place. If
@@ -70,73 +75,13 @@ fi
 [ -d config/sync ] || mkdir -pm 775 config/sync
 sudo chmod 775 -R private config web/sites/default/files 2>/dev/null || true
 
-# --- Match config/sync to this container's database driver -------------------
-# Drupal 11 ships database drivers as real modules, so core.extension.yml records
-# whichever one the site was exported from. Atelier's config/sync comes off our
-# Postgres stack and therefore lists `pgsql` — installing from it against DevPanel's
-# MySQL makes config-import try to uninstall the module providing the ACTIVE driver,
-# which core refuses outright:
-#
-#   The configuration synchronization failed validation.
-#   Unable to uninstall the MySQL module because: The module 'MySQL' is providing
-#   the database driver 'mysql'.
-#
-# The driver module is an artefact of where the config was exported, not a product
-# decision, so rewrite it to the driver this container actually runs. config/sync is
-# grafted into the image and committed to no repository, so this edits nothing a
-# human maintains.
-DB_MODULE="${DB_DRIVER:-mysql}"
-CORE_EXTENSION='config/sync/core.extension.yml'
-if ! grep -qE "^  ${DB_MODULE}: " "$CORE_EXTENSION"; then
-  for other in pgsql mysql sqlite; do
-    [ "$other" = "$DB_MODULE" ] && continue
-    if grep -qE "^  ${other}: " "$CORE_EXTENSION"; then
-      echo "Rewriting $CORE_EXTENSION: driver module ${other} → ${DB_MODULE}"
-      sed -i -E "s/^  ${other}: ([0-9]+)$/  ${DB_MODULE}: \1/" "$CORE_EXTENSION"
-    fi
-  done
-  if ! grep -qE "^  ${DB_MODULE}: " "$CORE_EXTENSION"; then
-    echo "FATAL: could not record the ${DB_MODULE} driver module in $CORE_EXTENSION." >&2
-    exit 1
-  fi
-fi
-
 # --- Install Atelier --------------------------------------------------------
+# dp_ensure_site() installs from config/sync (no seed exists yet at build time),
+# aligns config/sync's database driver module to this container's driver, and seeds
+# the branded homepage. It fails loudly rather than leaving a site-less image.
 echo
-if [ -z "$(drush status --field=db-status 2>/dev/null)" ]; then
-  echo '== Install Atelier from config/sync =='
-  # Install straight from the baked-in config/sync — config/sync IS the product's
-  # desired state (it ships the branded aincient_theme as the front end). Applying
-  # the recipe instead would leave an unbranded Olivero site. Mirrors
-  # docker/converge.sh's fresh_install().
-  #
-  # A known admin/admin is intentional for a throwaway public demo: the visitor IS
-  # the admin, and there is nothing here to protect. The appliance deliberately
-  # does the opposite (mints a random password) — never copy this line into it.
-  time drush -n site:install "${AINCIENT_INSTALL_PROFILE:-minimal}" --existing-config -y \
-    --account-name=admin \
-    --account-pass=admin \
-    --site-name=Atelier
-
-  # Right after install-from-config the extension registry is still stale, so a
-  # follow-up pm:install cannot see what config just enabled and would try to
-  # re-install it (PreExistingConfigException). Clear caches first.
-  drush -n cache:rebuild
-
-  # aincient_demo seeds the branded front door. It is deliberately NOT in
-  # config/sync (one-shot showcase content), so install-from-config does not enable
-  # it — do it explicitly, exactly as converge.sh does. Tolerate its absence so a
-  # demo-less build still produces a usable image.
-  echo
-  echo '== Seed the branded homepage (aincient_demo) =='
-  if ! drush -n pm:install aincient_demo -y; then
-    echo 'WARN: demo seed skipped — the site will install with an unbranded front page.'
-  fi
-  drush -n cache:rebuild
-else
-  echo '== Existing database — run updates =='
-  time drush -n updb -y
-fi
+echo '== Install Atelier from config/sync =='
+time dp_ensure_site
 
 # --- AI wiring --------------------------------------------------------------
 echo

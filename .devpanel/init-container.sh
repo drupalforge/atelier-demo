@@ -17,21 +17,25 @@ set -eu -o pipefail
 export PATH="$APP_ROOT/vendor/bin:$PATH"
 cd "$APP_ROOT"
 
-# --- 1. Import the baked database -------------------------------------------
-if [ -z "$(drush status --field=db-status 2>/dev/null)" ]; then
-  if [ -f .devpanel/dumps/db.sql.gz ]; then
-    echo 'Import the baked database.'
-    # Paths are resolved relative to the Drupal root (web/), hence the ../.
-    drush sqlq --file=../.devpanel/dumps/db.sql.gz
-    # drush gunzips the dump in place; re-compress so the next container built off
-    # this volume still finds db.sql.gz.
-    gzip -f .devpanel/dumps/db.sql 2>/dev/null || :
-    echo 'Apply any pending database updates.'
-    drush -n updb -y
-  else
-    echo 'WARN: no .devpanel/dumps/db.sql.gz and no database — this container has no site.' >&2
-  fi
-fi
+# shellcheck source=lib.sh
+. "$APP_ROOT/.devpanel/lib.sh"
+
+# Mirror everything into logs/ — container stdout goes to Kubernetes, which we
+# cannot read on a hosted instance.
+dp_start_log init-container
+
+# The database may not be listening yet when DevPanel starts this container.
+dp_wait_for_db
+
+# --- 1. Guarantee an installed site -----------------------------------------
+# Imports the immutable seed from /opt, or the in-tree dump, or installs from
+# config/sync — and fails loudly rather than leaving Drupal to serve its installer
+# to the public. Writable dirs first: a fresh volume may arrive without them.
+[ -d web/sites/default/files ] || mkdir -pm 775 web/sites/default/files
+[ -d private ] || mkdir -m 775 private
+[ -d config/sync ] || mkdir -pm 775 config/sync
+
+dp_ensure_site
 
 # --- 2. Per-container AI wiring ---------------------------------------------
 # The key entity is an ENV provider, so the secret itself was never baked into the

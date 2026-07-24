@@ -84,6 +84,20 @@ docker compose -f .devcontainer/docker-compose.yml up
 Set `DP_AI_VIRTUAL_KEY` in your shell first to exercise the AI wiring. The repo also
 opens directly as a VS Code dev container.
 
+To run the image the way **DevPanel** does — including the app-root volume dance, a
+Kubernetes-probe-shaped Host header, and an empty database — use the simulation harness.
+It works against the published image, so a "the hosted demo is broken" report can be
+reproduced locally instead of guessed at:
+
+```bash
+./bin/test-devpanel.sh                          # published image, all scenarios
+IMAGE=atelier-demo:local ./bin/test-devpanel.sh # your local build
+./bin/test-devpanel.sh freshdb                  # just one scenario
+```
+
+On a hosted instance itself, `.devpanel/doctor.sh` prints a full read-only diagnostic
+(and writes it to `logs/`). See [`.devpanel/README.md`](.devpanel/README.md#diagnosing-a-hosted-instance).
+
 ## Notes
 
 - **No AI image generation** in the demo: the LiteLLM proxy exposes no image model,
