@@ -14,16 +14,36 @@
 # Env:
 #   DP_AI_VIRTUAL_KEY  the trial key (unset ⇒ nothing happens, demo stays keyless)
 #   DP_AI_HOST         LiteLLM proxy base URL (default https://ai.drupalforge.org)
-#   DEMO_MODEL         override the budget model
+#   DEMO_MODEL         default for every role (one model everywhere)
+#   DEMO_MODEL_<ROLE>  per-role override, ROLE ∈ REASONING TASK FAST VISION.
+#                      Comma-separated preference list; the first model the proxy
+#                      actually offers wins (see dp_pick_model below).
 #
 set -eu -o pipefail
 cd "${APP_ROOT:?APP_ROOT must be set}"
 export PATH="$APP_ROOT/vendor/bin:$PATH"
 
-# Budget model: the cheapest capable Claude everywhere, so a $1 trial stretches to
-# roughly "3 pages + 1 brand". Our flows and prompts are tuned for Claude.
-DEMO_MODEL="${DEMO_MODEL:-anthropic/claude-haiku-4-5}"
 DP_AI_HOST="${DP_AI_HOST:-https://ai.drupalforge.org}"
+
+# Per-role models, mirroring the defaults the onboarding wizard suggests to a human
+# who connects OpenAI + Gemini — a capable model where it counts and a cheap one
+# where it does not, rather than one budget model everywhere:
+#
+#   reasoning → page and brand builds: structured JSON + tool calling
+#   task      → the everyday console turn
+#   fast      → trivial classify/extract steps
+#   vision    → alt text and captions. Safe to bind: it carries no operation-type
+#               projection, so it cannot clobber the tier that owns chat vision.
+#
+# Each is a *preference list*, because the proxy decides which model IDs exist and
+# this repo cannot know: the list is walked against the proxy's own /v1/models and
+# the first one actually offered is bound, with claude-haiku-4-5 as a known-good
+# tail. DEMO_MODEL, if set, replaces all four (the old behaviour: one model
+# everywhere).
+DEMO_MODEL_REASONING="${DEMO_MODEL_REASONING:-${DEMO_MODEL:-openai/gpt-5.4,anthropic/claude-haiku-4-5}}"
+DEMO_MODEL_TASK="${DEMO_MODEL_TASK:-${DEMO_MODEL:-gemini/gemini-flash-latest,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5}}"
+DEMO_MODEL_FAST="${DEMO_MODEL_FAST:-${DEMO_MODEL:-openai/gpt-5.4-mini,gemini/gemini-flash-latest,anthropic/claude-haiku-4-5}}"
+DEMO_MODEL_VISION="${DEMO_MODEL_VISION:-${DEMO_MODEL:-gemini/gemini-3.5-flash,gemini/gemini-flash-latest,openai/gpt-5.4}}"
 
 if [ -z "${DP_AI_VIRTUAL_KEY:-}" ]; then
   echo "wire-ai: DP_AI_VIRTUAL_KEY is unset — leaving the demo keyless (the onboarding wizard will show)."
@@ -54,6 +74,48 @@ drush -n config:set ai_provider_litellm.settings api_key litellm_api_key -y
 drush -n config:set ai_provider_litellm.settings host "$DP_AI_HOST" -y
 drush -n config:set ai_provider_litellm.settings moderation false --input-format=yaml -y
 
+# Ask the proxy which models it actually offers. This is the only place that list
+# is ever visible to us — container stdout goes to Kubernetes, which we cannot
+# read, so it is echoed into $APP_ROOT/logs/ by the calling script's dp_start_log.
+# A failure here is not fatal: we fall back to binding each role's first
+# preference, which is exactly what this script did before.
+DP_PROXY_MODELS="$(
+  curl -fsS -m 20 -H "Authorization: Bearer ${DP_AI_VIRTUAL_KEY}" \
+    "${DP_AI_HOST%/}/v1/models" 2>/dev/null \
+    | php -r '$d = json_decode(stream_get_contents(STDIN), TRUE) ?: []; foreach ($d["data"] ?? [] as $m) { if (!empty($m["id"])) { echo $m["id"], "\n"; } }' 2>/dev/null \
+    || true
+)"
+if [ -n "$DP_PROXY_MODELS" ]; then
+  echo "wire-ai: $DP_AI_HOST offers $(printf '%s\n' "$DP_PROXY_MODELS" | wc -l | tr -d ' ') models:"
+  printf '  %s\n' $DP_PROXY_MODELS
+else
+  echo "wire-ai: WARNING — could not read $DP_AI_HOST/v1/models; binding each role's first preference unverified."
+fi
+
+# Walk a comma-separated preference list and print the first model the proxy
+# offers. No blind picking if none match: fall back to the first preference and say
+# so loudly, so a wrong model ID shows up as one warning in the log rather than as
+# a demo that 404s on every turn with no explanation.
+dp_pick_model() {
+  local role="$1" prefs="$2" first="" candidate=""
+  local IFS=,
+  for candidate in $prefs; do
+    [ -n "$first" ] || first="$candidate"
+    if [ -z "$DP_PROXY_MODELS" ] || printf '%s\n' "$DP_PROXY_MODELS" | grep -Fxq "$candidate"; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+    echo "wire-ai: $role — '$candidate' is not offered by the proxy, trying the next preference." >&2
+  done
+  echo "wire-ai: WARNING — $role: none of [$prefs] is offered by $DP_AI_HOST; binding '$first' anyway." >&2
+  printf '%s' "$first"
+}
+
+MODEL_REASONING="$(dp_pick_model reasoning "$DEMO_MODEL_REASONING")"
+MODEL_TASK="$(dp_pick_model task "$DEMO_MODEL_TASK")"
+MODEL_FAST="$(dp_pick_model fast "$DEMO_MODEL_FAST")"
+MODEL_VISION="$(dp_pick_model vision "$DEMO_MODEL_VISION")"
+
 # Bind the model roles and project them onto ai.settings + flowdrop_chat — the
 # exact API the onboarding wizard uses, so the demo lands in the same state a
 # human-completed setup would.
@@ -61,12 +123,17 @@ drush -n config:set ai_provider_litellm.settings moderation false --input-format
 # The `image` role is deliberately left UNBOUND: the proxy exposes no image-
 # generation model, and an unbound image role makes the media/Library AI-generate
 # affordances hide themselves entirely rather than being offered and then failing.
-echo "wire-ai: binding reasoning/task/fast → $DEMO_MODEL (image left unbound)"
+echo "wire-ai: binding reasoning → $MODEL_REASONING"
+echo "wire-ai: binding task      → $MODEL_TASK"
+echo "wire-ai: binding fast      → $MODEL_FAST"
+echo "wire-ai: binding vision    → $MODEL_VISION"
+echo "wire-ai: leaving image unbound (no image model on the proxy)"
 drush -n php:eval "
   \$r = \Drupal::service('aincient_core.model_role_resolver');
-  foreach (['reasoning', 'task', 'fast'] as \$role) {
-    \$r->bind(\$role, 'litellm', '${DEMO_MODEL}');
-  }
+  \$r->bind('reasoning', 'litellm', '${MODEL_REASONING}');
+  \$r->bind('task', 'litellm', '${MODEL_TASK}');
+  \$r->bind('fast', 'litellm', '${MODEL_FAST}');
+  \$r->bind('vision', 'litellm', '${MODEL_VISION}');
   \$r->project();
 "
 
@@ -74,4 +141,4 @@ drush -n php:eval "
 drush -n state:set aincient_onboarding.completed 1
 drush -n cache:rebuild
 
-echo "wire-ai: done — roles → $DEMO_MODEL, image generation off, onboarding skipped."
+echo "wire-ai: done — reasoning=$MODEL_REASONING task=$MODEL_TASK fast=$MODEL_FAST vision=$MODEL_VISION, image generation off, onboarding skipped."

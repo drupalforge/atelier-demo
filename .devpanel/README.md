@@ -101,13 +101,34 @@ moves, not when `atelier-cms` `main` merges.
 | `DP_AI_VIRTUAL_KEY` | *(DevPanel-injected trial key)* | Unset ⇒ keyless demo, onboarding wizard shows. |
 | `DP_AI_HOST` | `https://ai.drupalforge.org` | LiteLLM proxy base URL. |
 | `WEB_ROOT` | `/var/www/html/web` | The docroot. The image defaults it, but set it explicitly. |
+| `DEMO_MODEL_REASONING` | `openai/gpt-5.4,anthropic/claude-haiku-4-5` | Page/brand builds: structured JSON + tool calling. |
+| `DEMO_MODEL_TASK` | `gemini/gemini-flash-latest,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5` | The everyday console turn. |
+| `DEMO_MODEL_FAST` | `openai/gpt-5.4-mini,gemini/gemini-flash-latest,anthropic/claude-haiku-4-5` | Trivial classify/extract. |
+| `DEMO_MODEL_VISION` | `gemini/gemini-3.5-flash,gemini/gemini-flash-latest,openai/gpt-5.4` | Alt text and captions. |
+| `DEMO_MODEL` | *(unset)* | If set, replaces all four — one model everywhere. |
 
-The demo binds the `reasoning` / `task` / `fast` model roles to
-`anthropic/claude-haiku-4-5` — the cheapest capable Claude, so a $1 trial stretches
-to roughly "3 pages + 1 brand". The **`image` role is left unbound on purpose**: the
-proxy exposes no image-generation model, and an unbound image role makes the
-AI-image affordances hide themselves rather than fail. AI image generation needs
-your own key on a self-hosted install.
+The roles are bound **per role**, mirroring what the onboarding wizard suggests to a
+human who connects OpenAI + Gemini: the capable model on `reasoning` (which owns
+`chat_with_tools` and the structured-JSON operations — the page and brand builds) and
+cheap models on everyday turns. That costs more per turn than the old
+all-`claude-haiku-4-5` binding, so the $1 trial buys fewer turns; it also produces
+visibly better builds, which is what a demo is for.
+
+Each variable is a **comma-separated preference list**, not a single model. `wire-ai.sh`
+asks the proxy which models it actually offers (`GET /v1/models`, using the injected
+key) and binds the first list entry that exists, with `anthropic/claude-haiku-4-5` as a
+known-good tail. It logs the proxy's full model list either way — the only place we can
+see it — and warns if it had to fall through. The proxy decides which model IDs are
+real, and this repo cannot know, so a model rename shows up as one warning in `logs/`
+rather than as a demo that 404s on every turn. Since `wire-ai.sh` re-binds on every
+container start, correcting a model ID is a DevPanel env change and a redeploy — no
+image rebuild.
+
+The **`image` role is left unbound on purpose**: the proxy exposes no image-generation
+model, and an unbound image role makes the AI-image affordances hide themselves rather
+than fail. AI image generation needs your own key on a self-hosted install. `vision` is
+safe to bind by contrast — it carries no operation-type projection, so it overrides the
+default chat role for alt text without clobbering the tier that owns chat vision.
 
 `AINCIENT_IMPORT_CONFIG` is **not** needed here. That flag exists to stop the
 appliance's `converge.sh` re-asserting `config/sync` on every restart (which would

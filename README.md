@@ -50,8 +50,8 @@ is unchanged and still boots keyless everywhere else.
    - store the key as an **env-provider** Key entity (`DP_AI_VIRTUAL_KEY`, read live —
      never persisted to config/State/DB, so it is never baked into the image) and point
      the provider at `DP_AI_HOST` (default `https://ai.drupalforge.org`),
-   - bind the `reasoning` / `task` / `fast` model roles to `anthropic/claude-haiku-4-5`
-     (budget model; `image` left unbound so AI image generation is off),
+   - bind the `reasoning` / `task` / `fast` / `vision` model roles per role, the way
+     the onboarding wizard would (`image` left unbound so AI image generation is off),
    - mark onboarding complete so visitors land straight in the console.
 
 Full detail, including every script and when it runs:
@@ -64,6 +64,24 @@ Full detail, including every script and when it runs:
 | `DP_AI_VIRTUAL_KEY` | *(DevPanel-injected trial key)* | The LiteLLM key. Unset ⇒ keyless demo (wizard shows). |
 | `DP_AI_HOST` | `https://ai.drupalforge.org` | LiteLLM proxy base URL. |
 | `WEB_ROOT` | `/var/www/html/web` | The docroot. The image defaults it, but set it explicitly. |
+
+Optional, and the reason a wrong model ID never needs an image rebuild — `wire-ai.sh`
+re-binds on every container start, so these can be set on the DevPanel app and take
+effect on the next deploy:
+
+| Var | Default (preference list) |
+|-----|---------------------------|
+| `DEMO_MODEL_REASONING` | `openai/gpt-5.4,anthropic/claude-haiku-4-5` |
+| `DEMO_MODEL_TASK` | `gemini/gemini-flash-latest,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5` |
+| `DEMO_MODEL_FAST` | `openai/gpt-5.4-mini,gemini/gemini-flash-latest,anthropic/claude-haiku-4-5` |
+| `DEMO_MODEL_VISION` | `gemini/gemini-3.5-flash,gemini/gemini-flash-latest,openai/gpt-5.4` |
+| `DEMO_MODEL` | *(unset)* — if set, replaces all four with one model everywhere |
+
+Each is a comma-separated **preference list**: `wire-ai.sh` asks the proxy which models
+it actually offers (`/v1/models`) and binds the first one on the list that exists,
+logging the full available list either way. The proxy — not this repo — decides which
+model IDs are real, so this is how a rename shows up as one line in `logs/` instead of
+as a demo that 404s on every turn.
 
 ## Version control (which build the demo runs)
 
@@ -103,5 +121,10 @@ On a hosted instance itself, `.devpanel/doctor.sh` prints a full read-only diagn
 - **No AI image generation** in the demo: the LiteLLM proxy exposes no image model,
   so `roles.image` is left empty and the media/Library AI-generate affordances hide
   themselves (they don't error). Full text/page building + brand *tokens* work.
-- Budget: the $1 trial ≈ "3 pages + 1 brand" on haiku-4.5.
+  Alt text and captions *do* work — that's the `vision` role, a chat call.
+- Budget: the roles are split so the costly model is only used where it counts
+  (`reasoning` — page and brand builds), with cheap models on everyday turns. That
+  buys better output per turn than one budget model everywhere, but fewer turns per
+  dollar than the old all-haiku-4.5 binding: expect the $1 trial to go less far than
+  "3 pages + 1 brand". Watch the first hosted runs before quoting a number.
 - Adapted from the reference [`drupalforge/drupal_cms_ai_demo`](https://github.com/drupalforge/drupal_cms_ai_demo).
