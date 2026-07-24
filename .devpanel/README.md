@@ -102,9 +102,9 @@ moves, not when `atelier-cms` `main` merges.
 | `DP_AI_HOST` | `https://ai.drupalforge.org` | LiteLLM proxy base URL. |
 | `WEB_ROOT` | `/var/www/html/web` | The docroot. The image defaults it, but set it explicitly. |
 | `DEMO_MODEL_REASONING` | `openai/gpt-5.4,anthropic/claude-haiku-4-5` | Page/brand builds: structured JSON + tool calling. |
-| `DEMO_MODEL_TASK` | `gemini/gemini-flash-latest,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5` | The everyday console turn. |
-| `DEMO_MODEL_FAST` | `openai/gpt-5.4-mini,gemini/gemini-flash-latest,anthropic/claude-haiku-4-5` | Trivial classify/extract. |
-| `DEMO_MODEL_VISION` | `gemini/gemini-3.5-flash,gemini/gemini-flash-latest,openai/gpt-5.4` | Alt text and captions. |
+| `DEMO_MODEL_TASK` | `gemini/gemini-3.5-flash,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5` | The everyday console turn. |
+| `DEMO_MODEL_FAST` | `openai/gpt-5.4-mini,gemini/gemini-3.5-flash,anthropic/claude-haiku-4-5` | Trivial classify/extract. |
+| `DEMO_MODEL_VISION` | `gemini/gemini-3.5-flash,openai/gpt-5.4` | Alt text and captions. |
 | `DEMO_MODEL` | *(unset)* | If set, replaces all four — one model everywhere. |
 
 The roles are bound **per role**, mirroring what the onboarding wizard suggests to a
@@ -123,6 +123,11 @@ real, and this repo cannot know, so a model rename shows up as one warning in `l
 rather than as a demo that 404s on every turn. Since `wire-ai.sh` re-binds on every
 container start, correcting a model ID is a DevPanel env change and a redeploy — no
 image rebuild.
+
+Every default is an **immutable model ID, never a floating `-latest` alias** — the same
+reason the graft pins an `atelier-cms` tag instead of tracking `:edge`. A `-latest` alias
+lets the proxy change the demo's model, and therefore its cost and output, with no deploy
+and no trace in the logs; a pinned ID means the demo only moves when we move it.
 
 The **`image` role is left unbound on purpose**: the proxy exposes no image-generation
 model, and an unbound image role makes the AI-image affordances hide themselves rather

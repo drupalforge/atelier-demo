@@ -41,9 +41,9 @@ DP_AI_HOST="${DP_AI_HOST:-https://ai.drupalforge.org}"
 # tail. DEMO_MODEL, if set, replaces all four (the old behaviour: one model
 # everywhere).
 DEMO_MODEL_REASONING="${DEMO_MODEL_REASONING:-${DEMO_MODEL:-openai/gpt-5.4,anthropic/claude-haiku-4-5}}"
-DEMO_MODEL_TASK="${DEMO_MODEL_TASK:-${DEMO_MODEL:-gemini/gemini-flash-latest,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5}}"
-DEMO_MODEL_FAST="${DEMO_MODEL_FAST:-${DEMO_MODEL:-openai/gpt-5.4-mini,gemini/gemini-flash-latest,anthropic/claude-haiku-4-5}}"
-DEMO_MODEL_VISION="${DEMO_MODEL_VISION:-${DEMO_MODEL:-gemini/gemini-3.5-flash,gemini/gemini-flash-latest,openai/gpt-5.4}}"
+DEMO_MODEL_TASK="${DEMO_MODEL_TASK:-${DEMO_MODEL:-gemini/gemini-3.5-flash,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5}}"
+DEMO_MODEL_FAST="${DEMO_MODEL_FAST:-${DEMO_MODEL:-openai/gpt-5.4-mini,gemini/gemini-3.5-flash,anthropic/claude-haiku-4-5}}"
+DEMO_MODEL_VISION="${DEMO_MODEL_VISION:-${DEMO_MODEL:-gemini/gemini-3.5-flash,openai/gpt-5.4}}"
 
 if [ -z "${DP_AI_VIRTUAL_KEY:-}" ]; then
   echo "wire-ai: DP_AI_VIRTUAL_KEY is unset — leaving the demo keyless (the onboarding wizard will show)."

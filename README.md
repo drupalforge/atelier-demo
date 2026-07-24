@@ -72,9 +72,9 @@ effect on the next deploy:
 | Var | Default (preference list) |
 |-----|---------------------------|
 | `DEMO_MODEL_REASONING` | `openai/gpt-5.4,anthropic/claude-haiku-4-5` |
-| `DEMO_MODEL_TASK` | `gemini/gemini-flash-latest,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5` |
-| `DEMO_MODEL_FAST` | `openai/gpt-5.4-mini,gemini/gemini-flash-latest,anthropic/claude-haiku-4-5` |
-| `DEMO_MODEL_VISION` | `gemini/gemini-3.5-flash,gemini/gemini-flash-latest,openai/gpt-5.4` |
+| `DEMO_MODEL_TASK` | `gemini/gemini-3.5-flash,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5` |
+| `DEMO_MODEL_FAST` | `openai/gpt-5.4-mini,gemini/gemini-3.5-flash,anthropic/claude-haiku-4-5` |
+| `DEMO_MODEL_VISION` | `gemini/gemini-3.5-flash,openai/gpt-5.4` |
 | `DEMO_MODEL` | *(unset)* — if set, replaces all four with one model everywhere |
 
 Each is a comma-separated **preference list**: `wire-ai.sh` asks the proxy which models
