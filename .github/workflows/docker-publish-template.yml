@@ -1,0 +1,44 @@
+name: Build and publish the demo image
+
+# Builds the Atelier demo image and pushes it tagged with the branch name, so
+# DevPanel can run it in registry mode. See .devpanel/README.md for the lifecycle.
+#
+# The build grafts a PINNED atelier-cms image (ATELIER_IMAGE in
+# .devpanel/Dockerfile) rather than resolving Composer, so a run here is fast and
+# reproducible: bump the pin, push, get a new demo image.
+
+on:
+  push:
+    branches:
+      - "main"
+  # A weekly rebuild picks up base-image security updates without changing the
+  # pinned Atelier build. On non-push events the action skips the rebuild when
+  # files_to_hash is unchanged, so this is cheap.
+  schedule:
+    - cron: '0 11 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  build-application:
+    uses: drupalforge/docker_publish_action/.github/workflows/docker-publish.yml@main
+    with:
+      dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
+      # PHP 8.4 to match the appliance image the tree is grafted from (the product
+      # is built and tested on 8.4). Debian trixie, so the packaged ImageMagick can
+      # encode AVIF — which every Atelier image style needs.
+      base_image: devpanel/php:8.4-base
+      # This repo ships no composer.lock (the action's default), because the
+      # Composer project is grafted in from the pinned image rather than resolved
+      # here. Hash the Dockerfile instead: it carries the pin, so it is exactly the
+      # file whose change should force a rebuild.
+      files_to_hash: .devpanel/Dockerfile
+    secrets:
+      dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+      # The LiteLLM trial key. Only the POINTER to it is baked into the image (an
+      # env-provider Key entity), never the value — so each running container reads
+      # whichever key DevPanel injects. Absent ⇒ the image is built keyless and
+      # .devpanel/init-container.sh wires the key at container start instead.
+      dp_ai_virtual_key: ${{ secrets.DP_AI_VIRTUAL_KEY }}

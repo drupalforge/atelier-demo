@@ -29,24 +29,33 @@ A thin DevPanel wrapper that hosts a live, throwaway demo of **Atelier** on
 [Drupal Forge](https://www.drupalforge.org/), with a **LiteLLM trial key wired in
 automatically** so visitors don't need to bring their own AI key.
 
-This repo carries **no product code**. DevPanel pulls the prebuilt Atelier image
-from the registry and runs [`.devpanel/init.sh`](.devpanel/init.sh) after it starts;
-that script layers the demo's AI key + model roles on top. The product image itself
+This repo carries **no product code**. The build grafts the Atelier tree straight out
+of a **pinned, published `atelier-cms` image**, so the demo runs the exact artifact we
+ship — and the only thing this layer adds is the trial-key wiring. The product itself
 is unchanged and still boots keyless everywhere else.
 
 ## How it works
 
-1. DevPanel starts `ghcr.io/aincient-labs/atelier-cms:<pinned-tag>` (registry mode).
-   The image's own entrypoint installs the site from its baked-in config.
-2. DevPanel injects a **$1 LiteLLM trial key** as `DP_AI_VIRTUAL_KEY` and runs
-   `.devpanel/init.sh`, which:
-   - enables `ai_provider_litellm`,
-   - stores the key as an **env-provider** Key entity (`DP_AI_VIRTUAL_KEY`, read live
-     — never persisted to config/State/DB) and points the provider at
-     `DP_AI_HOST` (default `https://ai.drupalforge.org`),
-   - binds the `reasoning` / `task` / `fast` model roles to `anthropic/claude-haiku-4-5`
+1. **Build** (GitHub Actions, `drupalforge/docker_publish_action`): this repo is laid
+   over `devpanel/php:8.4-base`, [`.devpanel/Dockerfile`](.devpanel/Dockerfile) grafts
+   `/opt/drupal` out of `ghcr.io/aincient-labs/atelier-cms:<pinned-tag>`, and
+   [`.devpanel/init.sh`](.devpanel/init.sh) installs Atelier from `config/sync` against
+   MySQL. The resulting database is baked in and the container committed as the demo
+   image.
+2. **Run** (DevPanel, registry mode): DevPanel starts that image, injects a **$1
+   LiteLLM trial key** as `DP_AI_VIRTUAL_KEY`, and runs
+   [`.devpanel/init-container.sh`](.devpanel/init-container.sh) → which imports the
+   baked database and calls [`.devpanel/wire-ai.sh`](.devpanel/wire-ai.sh) to:
+   - enable `ai_provider_litellm`,
+   - store the key as an **env-provider** Key entity (`DP_AI_VIRTUAL_KEY`, read live —
+     never persisted to config/State/DB, so it is never baked into the image) and point
+     the provider at `DP_AI_HOST` (default `https://ai.drupalforge.org`),
+   - bind the `reasoning` / `task` / `fast` model roles to `anthropic/claude-haiku-4-5`
      (budget model; `image` left unbound so AI image generation is off),
-   - marks onboarding complete so visitors land straight in the console.
+   - mark onboarding complete so visitors land straight in the console.
+
+Full detail, including every script and when it runs:
+[`.devpanel/README.md`](.devpanel/README.md).
 
 ## Required demo environment
 
@@ -54,14 +63,26 @@ is unchanged and still boots keyless everywhere else.
 |-----|-------|-----|
 | `DP_AI_VIRTUAL_KEY` | *(DevPanel-injected trial key)* | The LiteLLM key. Unset ⇒ keyless demo (wizard shows). |
 | `DP_AI_HOST` | `https://ai.drupalforge.org` | LiteLLM proxy base URL. |
-| **`AINCIENT_IMPORT_CONFIG`** | **`0`** | **Required.** The image re-asserts `config/sync` on every restart; without this, a restart uninstalls `ai_provider_litellm` and wipes the injected key/roles. Disabling config re-import is safe for a pinned, ephemeral demo. |
+| `WEB_ROOT` | `/var/www/html/web` | The docroot. The image defaults it, but set it explicitly. |
 
 ## Version control (which build the demo runs)
 
-The demo is pinned to a **specific `atelier-cms` image tag** — bumping that pin is how
-we promote a new demo build, independent of `:edge` on `main`. Set the tag in the
-DevPanel registry-image config for this template. Prefer an immutable tag
-(`:vX.Y.Z` or `:sha-<short>`) over `:latest`/`:edge`.
+The demo is pinned to a **specific `atelier-cms` image tag** via `ARG ATELIER_IMAGE`
+in [`.devpanel/Dockerfile`](.devpanel/Dockerfile). Bumping that pin and pushing is how
+we promote a new demo build, independent of `:edge` on `main`. Prefer an immutable tag
+(`vX.Y.Z` or `sha-<short>`) over `:latest`/`:edge`.
+
+## Testing it locally
+
+```bash
+./bin/build-local.sh                        # reproduces the CI build → atelier-demo:local
+export ATELIER_DEMO_IMAGE=atelier-demo:local
+docker compose -f .devcontainer/docker-compose.yml up
+# http://localhost — admin / admin
+```
+
+Set `DP_AI_VIRTUAL_KEY` in your shell first to exercise the AI wiring. The repo also
+opens directly as a VS Code dev container.
 
 ## Notes
 

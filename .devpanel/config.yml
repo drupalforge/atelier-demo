@@ -1,0 +1,19 @@
+# DevPanel git-integration hooks (used when $DP_TOKEN is configured in the git
+# provider and the provider calls the DevPanel git hook).
+#
+# Deliberately minimal. In most DevPanel templates this hook runs
+# `composer install`, because the app root IS a Composer project DevPanel builds.
+# Here it is not: .devpanel/Dockerfile grafts the whole resolved tree out of the
+# published atelier-cms image, so running composer install against a running demo
+# would re-resolve dependencies on top of that graft and silently produce a site
+# that no longer matches the pinned Atelier build.
+#
+# The way to update this demo is to bump ATELIER_IMAGE in .devpanel/Dockerfile and
+# push, which rebuilds and republishes the image. All this hook does is pick up
+# changes to the demo's own scripts.
+hooks:
+  git_hooks:
+    push:
+      - branch: "main"
+        cmd: |-
+          drush cache:rebuild >> /tmp/git_hook_main.log 2>&1

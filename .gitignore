@@ -1,0 +1,19 @@
+# This repo carries NO product code — the Atelier tree is grafted in from the
+# pinned atelier-cms image at build time (see .devpanel/Dockerfile). A local build
+# or a DevPanel volume sync drops that tree into the working copy, so ignore all of
+# it: anything listed here is generated, never authored.
+/composer.json
+/composer.lock
+/patches/
+/vendor/
+/web/
+/config/
+/recipes/
+/private/
+
+# Build artefacts and runtime state.
+/.devpanel/dumps/
+/logs/*
+!/logs/.gitkeep
+/.vscode/
+/php.ini

@@ -1,11 +1,24 @@
+# Local reproduction of how DevPanel runs the demo in REGISTRY MODE: start the
+# published image and let .devpanel/init-container.sh import the baked database and
+# sync the app root into this working copy.
+#
+# It therefore needs an image to exist. Either pull the published one (the default
+# below), or build one locally first and point at it:
+#
+#   ./bin/build-local.sh                      # → atelier-demo:local
+#   export ATELIER_DEMO_IMAGE=atelier-demo:local
+#   # then "Reopen in Container", or: docker compose -f .devcontainer/docker-compose.yml up
+#
+# Set DP_AI_VIRTUAL_KEY in your shell to exercise the AI wiring; without it the
+# demo boots keyless and shows the onboarding wizard.
 include:
   - base/docker-compose.base.yml
 
 services:
   app:
-    image: drupalforge/haven:main
+    image: ${ATELIER_DEMO_IMAGE:-drupalforge/atelier-demo:main}
     environment:
-      DP_APP_ID: 'haven'
+      DP_APP_ID: 'atelier-demo'
       APP_ROOT: '/var/www/html'
       WEB_ROOT: '/var/www/html/web'
       # Devcontainer-only unzip defaults for virtiofs metadata compatibility.
@@ -24,6 +37,8 @@ services:
       DB_USER: user
       DB_PASSWORD: password
       DB_DRIVER: mysql
+      DP_AI_VIRTUAL_KEY: ${DP_AI_VIRTUAL_KEY:-}
+      DP_AI_HOST: ${DP_AI_HOST:-https://ai.drupalforge.org}
     volumes:
       - "..:/var/www/html"
     depends_on:
@@ -33,13 +48,12 @@ services:
         condition: service_completed_successfully
 
   init-source-code:
-    # init-source-code: create-time service run by VS Code to import code and DB
-    # from the image into the host bind. It mounts the host project at
-    # /var/www/build, stashes local changes, temporarily removes the
-    # /.devpanel/init-container.sh marker so the image's init script will
-    # perform the sync, then restores the git working tree before exit. This
-    # service is intended to run only at container creation.
-    image: drupalforge/haven:main
+    # Create-time service run by VS Code to import code and the database from the
+    # image into the host bind. It mounts the host project at /var/www/build,
+    # stashes local changes, temporarily removes the /.devpanel/init-container.sh
+    # marker so the image's init script performs the sync, then restores the git
+    # working tree before exiting. Intended to run only at container creation.
+    image: ${ATELIER_DEMO_IMAGE:-drupalforge/atelier-demo:main}
     environment:
       APP_ROOT: /var/www/html
       DB_SYNC_VOL: yes
@@ -51,6 +65,8 @@ services:
       DB_USER: user
       DB_PASSWORD: password
       DB_DRIVER: mysql
+      DP_AI_VIRTUAL_KEY: ${DP_AI_VIRTUAL_KEY:-}
+      DP_AI_HOST: ${DP_AI_HOST:-https://ai.drupalforge.org}
     entrypoint:
       - sh
       - -c
