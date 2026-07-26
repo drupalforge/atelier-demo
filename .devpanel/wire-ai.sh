@@ -11,8 +11,9 @@
 # 0149). A pre-seeded trial key is a DevPanel concept, so it is injected here and
 # only here — a self-hosted install is untouched.
 #
-# WHAT THIS DOES AND DOES NOT DO. It connects the PROVIDER and stops there: the
-# key, the proxy host, and nothing else. It deliberately does NOT bind model roles
+# WHAT THIS DOES AND DOES NOT DO. It connects the PROVIDER, and declares which
+# vendors this proxy cannot actually serve (see "Which vendors can this proxy
+# actually SERVE?" below). It deliberately does NOT bind model roles
 # or mark onboarding complete, so the visitor gets the real first-run wizard —
 # name, providers (LiteLLM already showing "Connected", theirs addable), then the
 # one question the models step leads with: best value / balanced / best quality.
@@ -112,6 +113,109 @@ if [ -n "$DP_PROXY_MODELS" ]; then
 else
   echo "wire-ai: WARNING — could not read $DP_AI_HOST/v1/models."
 fi
+
+# --- Which vendors can this proxy actually SERVE? ---------------------------
+# /v1/models is a catalogue, not a promise. A LiteLLM proxy lists a model group
+# whether or not it holds a working upstream credential for that vendor, so a
+# model can be advertised, chosen by the wizard, bound to a role, and only then
+# fail every turn with an authentication error from the vendor — which reads to a
+# visitor as "Atelier is broken", because nothing before that moment could tell
+# them otherwise. (Observed 2026-07-26: every anthropic/* model on this host
+# returned Anthropic's own "API key is invalid" while openai/* and gemini/* were
+# fine, so all three tiers, whose picks fall through to Anthropic here, were dead.)
+#
+# So: ask. One 1-token completion per vendor, and anything that answers with an
+# AUTH error is declared unusable to the product through
+# `aincient_core.model_preferences` — a config object that exists precisely so a
+# deployment can state what our published recommendations cannot know about it.
+#
+# Two deliberate conservatisms:
+#   - only an auth signal excludes. A 400/404 means we picked a bad probe model,
+#     not that the vendor is unreachable, and excluding a whole vendor on an
+#     ambiguous failure is worse than leaving it in.
+#   - the list is rebuilt from scratch on every container start, so the day the
+#     credential is fixed the exclusion disappears by itself. Nothing here needs
+#     editing when the upstream problem goes away.
+dp_probe_vendor() {
+  # Prints the vendor id when it must be AVOIDED; silent when it is usable.
+  local vendor="$1" candidate body status tried=0 saw_auth_error=0
+
+  # `|| true`: a vendor whose every id is filtered out leaves grep exiting 1, and
+  # with `set -e -o pipefail` that would abort the container start over nothing.
+  for candidate in $(
+    printf '%s\n' $DP_PROXY_MODELS \
+      | grep "^${vendor}/" \
+      | grep -Eiv 'container|audio|realtime|tts|embed|image|lyria|robotics|computer-use|search|whisper|guard' \
+      | head -3 || true
+  ); do
+    tried=$((tried + 1))
+    body="$(
+      curl -sS -m 25 -o - -w '\nHTTP_STATUS:%{http_code}' \
+        -H "Authorization: Bearer ${DP_AI_VIRTUAL_KEY}" \
+        -H 'Content-Type: application/json' \
+        -d "{\"model\":\"${candidate}\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":1}" \
+        "${DP_AI_HOST%/}/v1/chat/completions" 2>/dev/null || true
+    )"
+    status="$(printf '%s' "$body" | sed -n 's/.*HTTP_STATUS:\([0-9]\{1,\}\).*/\1/p' | tail -1)"
+
+    if [ "$status" = "200" ]; then
+      echo "wire-ai: probe ${vendor} — OK (via ${candidate})." >&2
+      return 0
+    fi
+    # LiteLLM relays the upstream body, so the vendor's own wording is what we
+    # match on, alongside the proxy's exception class and the bare status codes.
+    if [ "$status" = "401" ] || [ "$status" = "403" ] \
+      || printf '%s' "$body" | grep -qiE 'authentication_error|AuthenticationError|api key|invalid.*key|unauthorized'; then
+      saw_auth_error=1
+      echo "wire-ai: probe ${vendor} — auth failure on ${candidate} (status ${status:-none})." >&2
+      continue
+    fi
+    echo "wire-ai: probe ${vendor} — ${candidate} failed with status ${status:-none} (not an auth error; ignoring)." >&2
+  done
+
+  if [ "$tried" -eq 0 ]; then
+    echo "wire-ai: probe ${vendor} — no chat-shaped model to probe; leaving it alone." >&2
+    return 0
+  fi
+  if [ "$saw_auth_error" -eq 1 ]; then
+    printf '%s' "$vendor"
+    return 0
+  fi
+  echo "wire-ai: probe ${vendor} — no model answered, but nothing looked like an auth failure; leaving it alone." >&2
+}
+
+DP_DEAD_VENDORS=""
+if [ -n "$DP_PROXY_MODELS" ]; then
+  for dp_vendor in $(printf '%s\n' $DP_PROXY_MODELS | sed -n 's|^\([^/][^/]*\)/.*|\1|p' | sort -u); do
+    dp_dead="$(dp_probe_vendor "$dp_vendor")"
+    [ -z "$dp_dead" ] || DP_DEAD_VENDORS="${DP_DEAD_VENDORS} ${dp_dead}"
+  done
+fi
+DP_DEAD_VENDORS="$(printf '%s' "$DP_DEAD_VENDORS" | sed 's/^ *//')"
+
+if [ -n "$DP_DEAD_VENDORS" ]; then
+  echo "wire-ai: unusable on this proxy (auth): $DP_DEAD_VENDORS — declaring them in aincient_core.model_preferences."
+else
+  echo "wire-ai: every vendor this proxy lists answered; declaring no exclusions."
+fi
+
+# Rebuild `avoid` wholesale — including back to empty. `prefer` is left alone:
+# this is a statement about what the proxy CANNOT do, and the curated document is
+# perfectly capable of choosing among what remains.
+DP_DEAD_VENDORS="$DP_DEAD_VENDORS" drush -n php:eval '
+  $config = \Drupal::configFactory()->getEditable("aincient_core.model_preferences");
+  if ($config->isNew()) {
+    // An older grafted image, from before model preferences existed.
+    print "ATELIER_PREFS=unsupported";
+    return;
+  }
+  $dead = array_values(array_filter(explode(" ", (string) getenv("DP_DEAD_VENDORS"))));
+  $config->set("avoid", array_map(static fn (string $v): string => $v . ":*", $dead))->save();
+  print "ATELIER_PREFS=" . (count($dead) ? implode(",", $dead) : "none");
+' || echo "wire-ai: WARNING — could not write aincient_core.model_preferences."
+echo
+
+drush -n cache:rebuild
 
 # --- Can the wizard actually offer models? ----------------------------------
 # The question is NOT what /v1/models says above, it is what the PRODUCT sees:
