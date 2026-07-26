@@ -106,13 +106,33 @@ moves, not when `atelier-cms` `main` merges.
 | `DEMO_MODEL_FAST` | `openai/gpt-5.4-mini,gemini/gemini-3.5-flash,anthropic/claude-haiku-4-5` | Trivial classify/extract. |
 | `DEMO_MODEL_VISION` | `gemini/gemini-3.5-flash,openai/gpt-5.4` | Alt text and captions. |
 | `DEMO_MODEL` | *(unset)* | If set, replaces all four — one model everywhere. |
+| `DEMO_ONBOARDING` | `1` | `0` auto-binds the roles above and skips the wizard (pre-2026-07-26 behaviour). |
 
-The roles are bound **per role**, mirroring what the onboarding wizard suggests to a
-human who connects OpenAI + Gemini: the capable model on `reasoning` (which owns
-`chat_with_tools` and the structured-JSON operations — the page and brand builds) and
-cheap models on everyday turns. That costs more per turn than the old
-all-`claude-haiku-4-5` binding, so the $1 trial buys fewer turns; it also produces
-visibly better builds, which is what a demo is for.
+### The visitor chooses the models (2026-07-26)
+
+`wire-ai.sh` connects the **provider** and nothing else: it does not bind model roles and
+does not set `aincient_onboarding.completed`. A visitor therefore gets the genuine
+first-run wizard — name → providers (LiteLLM already **Connected**, their own key
+addable) → models, where the step leads with one question over three tiers (best value /
+balanced / best quality). It is a 20-second step that explains the product's central
+idea; auto-wiring it away hid that, and spent the shared trial budget on our pick rather
+than theirs.
+
+The three profiles resolve to *different* models on this proxy because
+`ModelPresetResolver` tries the curated document's candidates against **proxy providers**
+(`litellm`, `openrouter`) in a second pass — LiteLLM serves other vendors' models under
+`vendor/model` ids, which the document already names. A direct key always wins the first
+pass. Without that pass every tier here would collapse to "the first model in the pool".
+
+**The guard.** The models step is populated the way the product reads a catalogue —
+`ProviderConnector::modelsForStored('litellm')` → the provider plugin → `GET /model/info`,
+keeping only entries whose `model_info.mode` is `chat`. That path is new to this demo (the
+old wiring read `/v1/models` in the shell and bound names directly), so if the proxy
+answers in a shape the plugin can't parse the pool is empty and a visitor is stranded
+mid-onboarding. `wire-ai.sh` probes it, logs the count, and falls back to auto-binding the
+`DEMO_MODEL_*` roles when it is zero. `doctor.sh` prints the same count.
+
+The variables below apply **only on that fallback path**.
 
 Each variable is a **comma-separated preference list**, not a single model. `wire-ai.sh`
 asks the proxy which models it actually offers (`GET /v1/models`, using the injected
@@ -129,10 +149,11 @@ reason the graft pins an `atelier-cms` tag instead of tracking `:edge`. A `-late
 lets the proxy change the demo's model, and therefore its cost and output, with no deploy
 and no trace in the logs; a pinned ID means the demo only moves when we move it.
 
-The **`image` role is left unbound on purpose**: the proxy exposes no image-generation
-model, and an unbound image role makes the AI-image affordances hide themselves rather
-than fail. AI image generation needs your own key on a self-hosted install. `vision` is
-safe to bind by contrast — it carries no operation-type projection, so it overrides the
+The **`image` role stays unbound** either way: the proxy exposes no image-generation
+model, so the wizard's image picker has an empty pool (the role is optional and never
+blocks finishing) and the media/Library AI-generate affordances hide themselves rather
+than fail. AI image generation needs your own key. On the fallback path `vision` is safe
+to bind by contrast — it carries no operation-type projection, so it overrides the
 default chat role for alt text without clobbering the tier that owns chat vision.
 
 `AINCIENT_IMPORT_CONFIG` is **not** needed here. That flag exists to stop the

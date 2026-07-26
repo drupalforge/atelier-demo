@@ -53,7 +53,9 @@ source, and the same thing runs on your own machine with one command.</p>
 <ul>
   <li>Sign in as <code>admin</code> / <code>admin</code>. The console is at
       <code>/atelier</code>.</li>
-  <li>An AI key is <strong>already connected</strong> — there's no setup step.</li>
+  <li>You'll land in a two-step setup. An AI key is <strong>already connected</strong>, so
+      there's nothing to paste: name yourself if you like, then pick a model tier —
+      <em>best value</em>, <em>balanced</em> or <em>best quality</em> — and you're in.</li>
   <li>Go to <strong>Pages</strong>, not the chat you land on first. Each studio has its own
       assistant and its own live preview; the <strong>General</strong> chat is for getting
       your bearings and won't build a page.</li>
@@ -144,8 +146,9 @@ are written for you, so what you ship is accessible by default.</p>
       <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-provider.webp"
            width="460" loading="lazy" class="img-fluid figure-img"
            alt="Atelier's Connect your AI screen listing Mistral, Anthropic, Ollama, OpenAI, Google Gemini and a LiteLLM Proxy marked as connected.">
-      <figcaption class="figure-caption">On this demo the LiteLLM proxy is already
-        connected. Add your own provider here any time.</figcaption>
+      <figcaption class="figure-caption">Step one of the setup you land in: the LiteLLM
+        proxy is already connected, so you can go straight on. Add your own provider here
+        any time.</figcaption>
     </figure>
   </div>
   <div class="col-md-6">
@@ -153,8 +156,9 @@ are written for you, so what you ship is accessible by default.</p>
       <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-model.webp"
            width="460" loading="lazy" class="img-fluid figure-img"
            alt="Atelier's Choose your models screen, assigning a model to each role: high thinking, task executor, fast, image description and image generation.">
-      <figcaption class="figure-caption">Atelier works in roles, not one hardcoded model —
-        pick per role, or let it choose by best value, balanced or best quality.</figcaption>
+      <figcaption class="figure-caption">Step two, and the one choice you make: Atelier
+        works in roles, not one hardcoded model — answer best value / balanced / best
+        quality, or open the pickers and set each role yourself.</figcaption>
     </figure>
   </div>
 </div>
@@ -164,10 +168,11 @@ are written for you, so what you ship is accessible by default.</p>
       no image model. Add one via <em>account menu → Set up AI providers</em> and connect
       Google Gemini or Nano Banana. Google's image models need a billing-enabled key; a free
       key returns a quota error.</li>
-  <li><strong>You can swap any model on that same screen.</strong> The included trial key is
-      shared and tuned so you can explore properly rather than being rationed — with your own
-      key you choose the models and there's no shared budget. OpenAI, Anthropic, Gemini,
-      Mistral, a local Ollama and any LiteLLM-compatible endpoint all work.</li>
+  <li><strong>You can change your models at any time</strong> — account menu → <em>Set up
+      AI providers</em>. The trial key is shared, so <em>best value</em> stretches it
+      furthest and <em>best quality</em> spends it fastest; with your own key there's no
+      shared budget at all. OpenAI, Anthropic, Gemini, Mistral, a local Ollama and any
+      LiteLLM-compatible endpoint all work.</li>
 </ul>
 
 <h3>Under the hood</h3>
@@ -184,8 +189,8 @@ Docker appliance you run yourself, keeping the content, the server, and the prov
   <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-welcome.webp"
        width="460" loading="lazy" class="img-fluid figure-img"
        alt="Atelier's welcome dialog reading 'Welcome to your studio' with a two-step setup and a Skip for now option.">
-  <figcaption class="figure-caption">On your own install this is the first thing you see:
-    two steps to connect a provider and pick models, then you're building.</figcaption>
+  <figcaption class="figure-caption">The same welcome you just went through — on your own
+    install you paste your own key at step two, then you're building.</figcaption>
 </figure>
 
 <p><a href="https://aincient-labs.com/">Website</a> ·

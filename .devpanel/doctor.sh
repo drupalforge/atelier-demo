@@ -101,10 +101,27 @@ else
 fi
 
 hdr 'AI wiring'
+# Expected on a healthy demo: completed is EMPTY and roles are unbound — the
+# visitor does onboarding themselves (wire-ai.sh only connects the provider). Both
+# set means wire-ai.sh took its fallback path, or someone finished the wizard.
 printf 'onboarding completed  %s\n' "$(drush state:get aincient_onboarding.completed 2>&1)"
 drush config:get ai_provider_litellm.settings 2>&1 | sed 's/^/      /'
 drush config:get key.key.litellm_api_key key_provider_settings 2>&1 | sed 's/^/      /'
 drush config:get aincient_core.model_roles roles 2>&1 | sed 's/^/      /'
+# The models step's pool, read the way the product reads it (GET /model/info via
+# the provider plugin). Zero here means the wizard cannot offer anything, which is
+# the one failure mode that would strand a visitor mid-onboarding.
+printf 'chat models the wizard can offer  %s\n' "$(
+  drush -n php:eval "
+    try {
+      \$m = \Drupal::service('aincient_onboarding.provider_connector')->modelsForStored('litellm');
+      print count(\$m['chat']) . ' chat / ' . count(\$m['image']) . ' image';
+    }
+    catch (\Throwable \$e) {
+      print 'ERROR — ' . \$e->getMessage();
+    }
+  " 2>&1 || true
+)"
 
 hdr 'HTTP (from inside the container, bypassing ingress)'
 for path in / /user/login; do
