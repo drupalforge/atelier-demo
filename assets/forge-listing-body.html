@@ -1,0 +1,193 @@
+<!--
+  Drupal Forge template listing — body field copy for /template/atelier-demo
+  Paste into the node's `body` field (Full HTML).
+
+  BEFORE PASTING, two things to do on the node:
+
+  1. EMPTY field_screenshots. Every screenshot is now inlined below, next to the step it
+     illustrates, with alt text and a caption. Leaving them in field_screenshots too renders
+     each one a second time full-width at the bottom (that is what makes the page 8283px
+     tall today).
+
+  2. UPLOAD assets/onboarding-model.webp (1164x2000, portrait). The variant currently
+     uploaded — onboarding-model-alt.webp, 3150x2020 — has the same dialog occupying only
+     ~29% of the frame, so inline at 880px the model names render ~250px wide and are
+     illegible. The portrait crop fills the frame and every role label reads.
+     After upload, CONFIRM the URL: if the name collides Drupal will save it as
+     onboarding-model_0.webp and the src below needs updating.
+
+  Also worth deleting from the node (verified duplicates, PSNR >= 51dB — they are the same
+  Globals screenshot three times, despite the filenames):
+    - screen-homepage-with-edit-button.webp   (not a homepage; it is Globals)
+    - screen-page-studio-prsence.webp         (not Page Studio; it is Globals; also a typo)
+  Keep screen-global-studio.webp as the single Globals shot.
+
+  Constraints this copy is written against:
+  - Forge derives the meta description from the body with NO separator between block
+    elements, so the body MUST open with a plain <p>. A leading <h2> produces
+    "...chatting with itAtelier turns..." in search results and unfurls.
+  - field_screenshots renders AFTER the body, so images must be inlined here to appear in
+    context rather than as an uncaptioned wall at the bottom.
+  - Bootstrap 5 utility classes are available (the theme ships them). Every image also
+    carries an explicit width attribute, so if the text format strips classes the portrait
+    shots are still constrained and the layout degrades to readable semantic HTML.
+-->
+
+<p><strong>Build a website by chatting with it.</strong> Atelier turns plain requests into
+real, editable Drupal content — describe the page you want and it composes it section by
+section, themed and structured, yours to refine by talking rather than hunting through
+settings.</p>
+
+<p><img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/hero.gif"
+        width="880" height="496" loading="eager" class="img-fluid"
+        alt="Typing 'Build a landing page for a small-batch coffee roaster' into Atelier and getting a finished, themed page in the live preview."></p>
+
+<p>Drupal has always been able to build this site. The difference here is the
+<em>experience</em>: you don't need to be a developer to enjoy the ride. It's free, open
+source, and the same thing runs on your own machine with one command.</p>
+
+<hr>
+
+<h3>Start here</h3>
+
+<ul>
+  <li>Sign in as <code>admin</code> / <code>admin</code>. The console is at
+      <code>/atelier</code>.</li>
+  <li>An AI key is <strong>already connected</strong> — there's no setup step.</li>
+  <li>Go to <strong>Pages</strong>, not the chat you land on first. Each studio has its own
+      assistant and its own live preview; the <strong>General</strong> chat is for getting
+      your bearings and won't build a page.</li>
+  <li>Instances are throwaway. Build freely.</li>
+</ul>
+
+<p>Paste one of these into Pages to start:</p>
+
+<ul>
+  <li><em>"A landing page for a small-batch coffee roaster — hero, three featured roasts, a
+      story section, and a newsletter signup."</em> (the one in the clip above)</li>
+  <li><em>"A landing page for a small ceramics studio in Lisbon."</em></li>
+  <li><em>"A pricing page with three tiers and an FAQ."</em></li>
+</ul>
+
+<hr>
+
+<h3>1. Pages — make something exist</h3>
+
+<figure class="figure">
+  <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/screen-pages.webp"
+       width="880" loading="lazy" class="img-fluid figure-img"
+       alt="Atelier's Pages studio: a chat panel on the left reading 'Let's build your page', the page list in the middle, and an empty editing rail on the right.">
+  <figcaption class="figure-caption">This is the screen you land on. Type into the box on the
+    left — the middle column is your page list, the right rail is where sections appear as
+    they're composed.</figcaption>
+</figure>
+
+<p>Describe what you want and you get a real page with real sections — headings, copy,
+layout — not a wireframe. Read it, then ask for changes: <em>"make the intro shorter and add
+a section about the workshops."</em> Nothing publishes itself; the assistant proposes, you
+approve what ships.</p>
+
+<h3>2. Design System — make it yours</h3>
+
+<figure class="figure">
+  <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/screen-design-studio.webp"
+       width="880" loading="lazy" class="img-fluid figure-img"
+       alt="Atelier's Design System studio showing a live brand preview beside a panel of colour tokens with contrast ratings and a typography section.">
+  <figcaption class="figure-caption">Every colour, font, corner and shadow is a token, with
+    contrast checked as you go. Change one in chat and the whole site repaints.</figcaption>
+</figure>
+
+<p>Go to <strong>Site → Design System</strong>. This is your brand: colour, type, shape. Ask
+for <em>"a warmer primary colour, softer headings"</em> — then go back to your page. It
+already changed. Now ask Pages for a second page — <em>"a contact page"</em> — and watch it
+arrive in the same brand, without being told.</p>
+
+<p>This is the step worth your attention. A real website isn't ten pages, it's one brand ten
+times. Getting a page out of an AI is easy; getting a site that still looks like itself on
+page nine is the hard part, and it's the thing Atelier is built around.</p>
+
+<h3>3. Globals — turn pages into a site</h3>
+
+<figure class="figure">
+  <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/screen-global-studio.webp"
+       width="880" loading="lazy" class="img-fluid figure-img"
+       alt="Atelier's Globals studio: a placeholder page showing how the header and footer wrap real content, beside a Brand identity panel with site name, tagline, voice and imagery fields.">
+  <figcaption class="figure-caption">Globals owns the frame around every page — header,
+    footer, identity, and the voice and imagery rules the assistant writes to.</figcaption>
+</figure>
+
+<p><strong>Site → Globals</strong> owns the site-wide frame: header, footer, site identity,
+and which page is the front page. Try <em>"put both pages in the main menu and use the studio
+name in the header."</em> (Design System holds the brand tokens; Globals holds the identity
+and chrome that wrap every page.)</p>
+
+<h3>4. Library — images and reusable blocks</h3>
+
+<figure class="figure">
+  <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/screen-library.webp"
+       width="880" loading="lazy" class="img-fluid figure-img"
+       alt="Atelier's Library listing three images, each with an AI-written title and a descriptive alt text line beneath it.">
+  <figcaption class="figure-caption">Browsing, uploading, cropping and AI-written alt text
+    all work here — note the descriptions written for each image.</figcaption>
+</figure>
+
+<p>Ask Library to place an image and drop it straight into a page. Descriptions and alt text
+are written for you, so what you ship is accessible by default.</p>
+
+<hr>
+
+<h3>Good to know</h3>
+
+<div class="row">
+  <div class="col-md-6">
+    <figure class="figure">
+      <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-provider.webp"
+           width="460" loading="lazy" class="img-fluid figure-img"
+           alt="Atelier's Connect your AI screen listing Mistral, Anthropic, Ollama, OpenAI, Google Gemini and a LiteLLM Proxy marked as connected.">
+      <figcaption class="figure-caption">On this demo the LiteLLM proxy is already
+        connected. Add your own provider here any time.</figcaption>
+    </figure>
+  </div>
+  <div class="col-md-6">
+    <figure class="figure">
+      <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-model.webp"
+           width="460" loading="lazy" class="img-fluid figure-img"
+           alt="Atelier's Choose your models screen, assigning a model to each role: high thinking, task executor, fast, image description and image generation.">
+      <figcaption class="figure-caption">Atelier works in roles, not one hardcoded model —
+        pick per role, or let it choose by best value, balanced or best quality.</figcaption>
+    </figure>
+  </div>
+</div>
+
+<ul>
+  <li><strong>AI image generation needs your own key.</strong> The shared trial endpoint has
+      no image model. Add one via <em>account menu → Set up AI providers</em> and connect
+      Google Gemini or Nano Banana. Google's image models need a billing-enabled key; a free
+      key returns a quota error.</li>
+  <li><strong>You can swap any model on that same screen.</strong> The included trial key is
+      shared and tuned so you can explore properly rather than being rationed — with your own
+      key you choose the models and there's no shared budget. OpenAI, Anthropic, Gemini,
+      Mistral, a local Ollama and any LiteLLM-compatible endpoint all work.</li>
+</ul>
+
+<h3>Under the hood</h3>
+
+<p>It's real Drupal: standards-based content, config-as-code, your database. Nothing here is
+a mock-up you'd rebuild later — export it and take it anywhere.</p>
+
+<p>Atelier is free and open source (GPL-2.0-or-later) and designed to be self-hosted: a
+Docker appliance you run yourself, keeping the content, the server, and the provider keys.</p>
+
+<pre><code>curl -fsSL https://aincient-labs.com/atelier/install.sh | bash</code></pre>
+
+<figure class="figure">
+  <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-welcome.webp"
+       width="460" loading="lazy" class="img-fluid figure-img"
+       alt="Atelier's welcome dialog reading 'Welcome to your studio' with a two-step setup and a Skip for now option.">
+  <figcaption class="figure-caption">On your own install this is the first thing you see:
+    two steps to connect a provider and pick models, then you're building.</figcaption>
+</figure>
+
+<p><a href="https://aincient-labs.com/">Website</a> ·
+   <a href="https://aincient-labs.com/docs">Documentation</a> ·
+   <a href="https://github.com/aincient-labs/atelier-cms">Source on GitHub</a></p>

@@ -17,3 +17,4 @@
 !/logs/.gitkeep
 /.vscode/
 /php.ini
+.DS_Store
