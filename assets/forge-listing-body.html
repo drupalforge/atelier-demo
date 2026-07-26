@@ -53,9 +53,16 @@ source, and the same thing runs on your own machine with one command.</p>
 <ul>
   <li>Sign in as <code>admin</code> / <code>admin</code>. The console is at
       <code>/atelier</code>.</li>
-  <li>You'll land in a two-step setup. An AI key is <strong>already connected</strong>, so
-      there's nothing to paste: name yourself if you like, then pick a model tier —
-      <em>best value</em>, <em>balanced</em> or <em>best quality</em> — and you're in.</li>
+  <li>You'll land in a <strong>short two-step setup</strong> — the product's real first run, and
+      there's no way past it. There's also nothing to paste: an AI key is
+      <strong>already connected</strong>. Give a name if you like, then pick a model tier.
+      About twenty seconds.</li>
+  <li><strong>Choose <em>Balanced</em></strong> unless you have a reason not to. Atelier works in
+      roles rather than one hardcoded model, and the tier you pick here decides which model does
+      the actual page composition — <em>balanced</em> is the product's own default and what that
+      work is tuned against. <em>Best value</em> runs even the composer on a cheap model: it
+      stretches the shared trial key furthest, but expect rougher pages. <em>Best quality</em>
+      gives the best pages and spends the key fastest. You can change it later.</li>
   <li>Go to <strong>Pages</strong>, not the chat you land on first. Each studio has its own
       assistant and its own live preview; the <strong>General</strong> chat is for getting
       your bearings and won't build a page.</li>
@@ -169,10 +176,11 @@ are written for you, so what you ship is accessible by default.</p>
       Google Gemini or Nano Banana. Google's image models need a billing-enabled key; a free
       key returns a quota error.</li>
   <li><strong>You can change your models at any time</strong> — account menu → <em>Set up
-      AI providers</em>. The trial key is shared, so <em>best value</em> stretches it
-      furthest and <em>best quality</em> spends it fastest; with your own key there's no
-      shared budget at all. OpenAI, Anthropic, Gemini, Mistral, a local Ollama and any
-      LiteLLM-compatible endpoint all work.</li>
+      AI providers</em>. Rerun the tier choice, or open the pickers and set each role
+      individually. The trial key here is shared, which is the only reason the tier is a
+      budget question at all; connect your own key and there's no shared budget to spend.
+      OpenAI, Anthropic, Gemini, Mistral, a local Ollama and any LiteLLM-compatible endpoint
+      all work.</li>
 </ul>
 
 <h3>Under the hood</h3>
@@ -192,6 +200,26 @@ Docker appliance you run yourself, keeping the content, the server, and the prov
   <figcaption class="figure-caption">The same welcome you just went through — on your own
     install you paste your own key at step two, then you're building.</figcaption>
 </figure>
+
+<hr>
+
+<h3>Thanks</h3>
+
+<p><strong><a href="https://www.drupalforge.org/">Drupal Forge</a></strong> — a free platform by
+the OPS Association — and <strong><a href="https://devpanel.com/">DevPanel</a></strong>, which it
+runs on, host this demo and supply the trial AI key behind it. That key is the reason there was
+nothing for you to paste: you could launch an instance and start building without bringing a
+provider account of your own. Our thanks for the offer and for the help getting it running.</p>
+
+<p><strong><a href="https://www.factorial.io/">Factorial GmbH</a></strong> is the company behind
+<strong><a href="https://www.drupal.org/project/flowdrop">FlowDrop</a></strong>, the visual
+workflow engine every Atelier agent runs on — including the one that just built your page — and a
+steady supporter of this project. They offer professional support and consulting for serious
+Drupal deployments.</p>
+
+<p>And to the Drupal community, whose work all of this stands on.</p>
+
+<hr>
 
 <p><a href="https://aincient-labs.com/">Website</a> ·
    <a href="https://aincient-labs.com/docs">Documentation</a> ·
