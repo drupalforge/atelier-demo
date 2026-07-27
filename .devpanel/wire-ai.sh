@@ -138,13 +138,26 @@ fi
 #     editing when the upstream problem goes away.
 dp_probe_vendor() {
   # Prints the vendor id when it must be AVOIDED; silent when it is usable.
+  #
+  # The request carries NO token cap on purpose. `max_tokens` is rejected outright
+  # by OpenAI's GPT-5 family (they want `max_completion_tokens`), which on the
+  # first real run made every openai/* probe return 400 and report "no model
+  # answered" for a vendor that demonstrably works. Sending neither is the one
+  # shape every vendor behind this proxy accepts; a handful of "hi" replies per
+  # container start is not a cost worth a compatibility matrix.
   local vendor="$1" candidate body status tried=0 saw_auth_error=0
 
+  # Two filters, both learned from the first real run against this proxy:
+  #   - `vendor/*` — LiteLLM publishes a wildcard model GROUP per vendor and it
+  #     comes back from /v1/models looking exactly like a model id. Probing it
+  #     spends a candidate slot to earn a 400 that means nothing.
+  #   - non-chat ids, which would fail for a reason unrelated to the credential.
   # `|| true`: a vendor whose every id is filtered out leaves grep exiting 1, and
   # with `set -e -o pipefail` that would abort the container start over nothing.
   for candidate in $(
     printf '%s\n' $DP_PROXY_MODELS \
       | grep "^${vendor}/" \
+      | grep -v '/\*$' \
       | grep -Eiv 'container|audio|realtime|tts|embed|image|lyria|robotics|computer-use|search|whisper|guard' \
       | head -3 || true
   ); do
@@ -153,7 +166,7 @@ dp_probe_vendor() {
       curl -sS -m 25 -o - -w '\nHTTP_STATUS:%{http_code}' \
         -H "Authorization: Bearer ${DP_AI_VIRTUAL_KEY}" \
         -H 'Content-Type: application/json' \
-        -d "{\"model\":\"${candidate}\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":1}" \
+        -d "{\"model\":\"${candidate}\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}" \
         "${DP_AI_HOST%/}/v1/chat/completions" 2>/dev/null || true
     )"
     status="$(printf '%s' "$body" | sed -n 's/.*HTTP_STATUS:\([0-9]\{1,\}\).*/\1/p' | tail -1)"
