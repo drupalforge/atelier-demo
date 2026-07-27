@@ -4,17 +4,20 @@
 
   BEFORE PASTING, two things to do on the node:
 
-  1. EMPTY field_screenshots. Every screenshot is now inlined below, next to the step it
-     illustrates, with alt text and a caption. Leaving them in field_screenshots too renders
-     each one a second time full-width at the bottom (that is what makes the page 8283px
-     tall today).
+  1. UPLOAD assets/onboarding-connect.webp (1322x1770) and assets/onboarding-pace.webp
+     (1168x1238). These are the CURRENT two-step wizard (cms 11786d5, live in the pinned
+     sha-f22784c image): the welcome and the provider list are one screen now, and the
+     optional name field is gone. The three shots they replace — onboarding-welcome.webp,
+     onboarding-provider.webp, onboarding-model.webp — are the retired three-step flow and
+     should be DELETED from the node.
+     Both filenames are new, so Drupal will not rename them; still confirm the URLs after
+     upload, because a collision saves as <name>_0.webp and the src below needs updating.
 
-  2. UPLOAD assets/onboarding-model.webp (1164x2000, portrait). The variant currently
-     uploaded — onboarding-model-alt.webp, 3150x2020 — has the same dialog occupying only
-     ~29% of the frame, so inline at 880px the model names render ~250px wide and are
-     illegible. The portrait crop fills the frame and every role label reads.
-     After upload, CONFIRM the URL: if the name collides Drupal will save it as
-     onboarding-model_0.webp and the src below needs updating.
+  2. EMPTY field_screenshots. Every screenshot is inlined below, next to the step it
+     illustrates, with alt text and a caption. Leaving them in field_screenshots too renders
+     each one a second time full-width at the bottom (that is what made the page 8283px
+     tall). As of 2026-07-27 the field holds three re-uploads of the RETIRED onboarding
+     shots (onboarding-welcome_1, onboarding-provider_1, onboarding-model_0) — remove them.
 
   Also worth deleting from the node (verified duplicates, PSNR >= 51dB — they are the same
   Globals screenshot three times, despite the filenames):
@@ -55,7 +58,7 @@ source, and the same thing runs on your own machine with one command.</p>
       <code>/atelier</code>.</li>
   <li>You'll land in a <strong>short two-step setup</strong> — the product's real first run, and
       there's no way past it. There's also nothing to paste: an AI key is
-      <strong>already connected</strong>. Confirm it, then pick a model tier.
+      <strong>already connected</strong>. Go straight on, then pick a model tier.
       About twenty seconds.</li>
   <li><strong>Choose <em>Balanced</em></strong> unless you have a reason not to. Atelier works in
       roles rather than one hardcoded model, and the tier you pick here decides which model does
@@ -150,19 +153,19 @@ are written for you, so what you ship is accessible by default.</p>
 <div class="row">
   <div class="col-md-6">
     <figure class="figure">
-      <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-provider.webp"
-           width="460" loading="lazy" class="img-fluid figure-img"
-           alt="Atelier's Connect your AI screen listing Mistral, Anthropic, Ollama, OpenAI, Google Gemini and a LiteLLM Proxy marked as connected.">
-      <figcaption class="figure-caption">Step one of the setup you land in: the LiteLLM
-        proxy is already connected, so you can go straight on. Add your own provider here
-        any time.</figcaption>
+      <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-connect.webp"
+           width="460" height="616" loading="lazy" class="img-fluid figure-img"
+           alt="Atelier's welcome screen, reading 'Welcome to your studio', listing Mistral, Anthropic, Ollama, OpenAI and Google Gemini to connect, with a LiteLLM Proxy already marked as connected.">
+      <figcaption class="figure-caption">Step one is the whole welcome: the LiteLLM proxy is
+        already connected, so you can go straight on. Add your own provider here any
+        time.</figcaption>
     </figure>
   </div>
   <div class="col-md-6">
     <figure class="figure">
-      <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-model.webp"
-           width="460" loading="lazy" class="img-fluid figure-img"
-           alt="Atelier's Set the pace screen, offering best value, balanced and best quality, with per-role model pickers behind a disclosure.">
+      <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-pace.webp"
+           width="460" height="488" loading="lazy" class="img-fluid figure-img"
+           alt="Atelier's Set the pace screen, offering best value, balanced and best quality, with a 'Choose per role' disclosure holding the individual model pickers.">
       <figcaption class="figure-caption">Step two, and the one choice you make: Atelier
         works in roles, not one hardcoded model — answer best value / balanced / best
         quality, or open the pickers and set each role yourself.</figcaption>
@@ -193,13 +196,8 @@ Docker appliance you run yourself, keeping the content, the server, and the prov
 
 <pre><code>curl -fsSL https://aincient-labs.com/atelier/install.sh | bash</code></pre>
 
-<figure class="figure">
-  <img src="https://drupalforge.s3.us-west-2.amazonaws.com/prod/public/2026-07/onboarding-welcome.webp"
-       width="460" loading="lazy" class="img-fluid figure-img"
-       alt="Atelier's welcome dialog reading 'Welcome to your studio' with a two-step setup and a Skip for now option.">
-  <figcaption class="figure-caption">The same welcome you just went through — on your own
-    install you paste your own key at step one, then you're building.</figcaption>
-</figure>
+<p>You get the same two-step welcome you just went through — the only difference is that on
+your own install you paste your own key at step one, and then you're building.</p>
 
 <hr>
 
