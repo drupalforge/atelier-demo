@@ -2,22 +2,34 @@
   Drupal Forge template listing — body field copy for /template/atelier-demo
   Paste into the node's `body` field (Full HTML).
 
-  BEFORE PASTING, two things to do on the node:
+  The images are NOT part of this file — the src attributes below are absolute URLs into
+  Drupal Forge's S3 bucket, so every image referenced here must already be uploaded to the
+  node. Getting one there takes THREE saves, in this order. Do not compress them.
 
-  1. UPLOAD assets/onboarding-connect.webp (1322x1770) and assets/onboarding-pace.webp
-     (1168x1238). These are the CURRENT two-step wizard (cms 11786d5, live in the pinned
+  1. SAVE ONE — upload only. Attach assets/onboarding-connect.webp (1322x1770) and
+     assets/onboarding-pace.webp (1168x1238) to field_screenshots and save the node with no
+     other change. These are the CURRENT two-step wizard (cms 11786d5, live in the pinned
      sha-f22784c image): the welcome and the provider list are one screen now, and the
-     optional name field is gone. The three shots they replace — onboarding-welcome.webp,
-     onboarding-provider.webp, onboarding-model.webp — are the retired three-step flow and
-     should be DELETED from the node.
-     Both filenames are new, so Drupal will not rename them; still confirm the URLs after
-     upload, because a collision saves as <name>_0.webp and the src below needs updating.
+     optional name field is gone.
 
-  2. EMPTY field_screenshots. Every screenshot is inlined below, next to the step it
-     illustrates, with alt text and a caption. Leaving them in field_screenshots too renders
-     each one a second time full-width at the bottom (that is what made the page 8283px
-     tall). As of 2026-07-27 the field holds three re-uploads of the RETIRED onboarding
-     shots (onboarding-welcome_1, onboarding-provider_1, onboarding-model_0) — remove them.
+     DO NOT attach and empty the field in one edit. A just-attached file is a TEMPORARY File
+     entity, and clearing the widget before saving deletes it from S3 — that is exactly how
+     2026-07-27 ended with a body pointing at two nonexistent objects and two broken images
+     on a public page. Saving first makes them permanent, and permanent files survive being
+     removed from a field later (proven: the retired shots below are still 200 in the bucket
+     long after the node stopped referencing them).
+
+  2. SAVE TWO — paste this body. Confirm the two URLs return 200 first: a name collision
+     saves as <name>_0.webp and the src below then needs updating.
+
+  3. SAVE THREE — EMPTY field_screenshots. Every screenshot is inlined below, next to the
+     step it illustrates, with alt text and a caption. Leaving them in field_screenshots too
+     renders each one a second time full-width at the bottom (that is what made the page
+     8283px tall). The objects stay in the bucket; only the references go.
+
+  The three shots this pair replaces — onboarding-welcome.webp, onboarding-provider.webp,
+  onboarding-model.webp (and the re-uploads onboarding-welcome_1, onboarding-provider_1,
+  onboarding-model_0) — are the retired three-step flow. Safe to delete from the node.
 
   Also worth deleting from the node (verified duplicates, PSNR >= 51dB — they are the same
   Globals screenshot three times, despite the filenames):
