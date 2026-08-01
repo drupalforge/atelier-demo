@@ -60,7 +60,7 @@ RUN apt-get update \
 # trailing FROM would replace the base as the final image. One literal, one place to
 # change. bin/build-local.sh rewrites it in a temporary copy when you pass
 # ATELIER_IMAGE for a local build.
-COPY --from=ghcr.io/aincient-labs/atelier-cms:sha-f22784c /opt/drupal/ ${APP_ROOT}/
+COPY --from=ghcr.io/aincient-labs/atelier-cms:sha-f75e6ac /opt/drupal/ ${APP_ROOT}/
 
 # --- 3. Settings ------------------------------------------------------------
 # The appliance's settings.php reads a single DATABASE_URL and hardcodes
