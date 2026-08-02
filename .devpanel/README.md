@@ -112,23 +112,34 @@ moves, not when `atelier-cms` `main` merges.
 
 `wire-ai.sh` connects the **provider** and nothing else: it does not bind model roles and
 does not set `aincient_onboarding.completed`. A visitor therefore gets the genuine
-first-run wizard — name → providers (LiteLLM already **Connected**, their own key
-addable) → models, where the step leads with one question over three tiers (best value /
-balanced / best quality). It is a 20-second step that explains the product's central
-idea; auto-wiring it away hid that, and spent the shared trial budget on our pick rather
-than theirs.
+first-run wizard — name → providers (the proxy already **Connected**, as *OpenAI-compatible
+endpoint*, their own key addable) → models, where the step leads with one question over
+three tiers (best value / balanced / best quality). It is a 20-second step that explains
+the product's central idea; auto-wiring it away hid that, and spent the shared trial
+budget on our pick rather than theirs.
 
-The three profiles resolve to *different* models on this proxy because
+**The three profiles no longer resolve to different models here.** They used to:
 `ModelPresetResolver` tries the curated document's candidates against **proxy providers**
-(`litellm`, `openrouter`) in a second pass — LiteLLM serves other vendors' models under
-`vendor/model` ids, which the document already names. A direct key always wins the first
-pass. Without that pass every tier here would collapse to "the first model in the pool".
+in a second pass, matching the vendor named inside a `vendor/model` id. That pass is gated
+on `isProxy()`, and since the `drupal/ai` teardown this proxy is connected as
+`openai_compatible`, which reports `FALSE` — its ids are usually the vendor's own and
+unnamespaced, and the product cannot know that *this* host namespaces them. So all three
+tiers collapse to "the first model in the pool" and every model shows the `untested`
+badge. The question is still asked and the demo still works; it is simply not opinionated
+here. Fixing it needs either a `litellm` adapter declaring `isProxy() === TRUE` or an
+`isProxy()` derived from the catalogue's shape.
 
-**The guard.** The models step is populated the way the product reads a catalogue —
-`ProviderConnector::modelsForStored('litellm')` → the provider plugin → `GET /model/info`,
-keeping only entries whose `model_info.mode` is `chat`. That path is new to this demo (the
-old wiring read `/v1/models` in the shell and bound names directly), so if the proxy
-answers in a shape the plugin can't parse the pool is empty and a visitor is stranded
+**What still works is the dead-vendor guard,** because `wire-ai.sh` writes it in the
+connected provider's own identity — `avoid: ["openai_compatible:anthropic/"]`, not
+`["anthropic:*"]`. `isAvoided()` splits the pattern on its first colon and substring-matches
+the remainder against the model id, so `anthropic/` catches `anthropic/claude-sonnet-5`
+without any proxy identity being derived. The old `vendor:*` shape would now match nothing
+at all: a guard that silently stops guarding.
+
+**The guard on the pool.** The models step is populated the way the product reads a
+catalogue — `ProviderConnector::modelsForStored('openai_compatible')` → the adapter →
+`GET <base>/v1/models`, minus anything that looks like an embedding model. If the proxy
+answers in a shape the adapter can't parse the pool is empty and a visitor is stranded
 mid-onboarding. `wire-ai.sh` probes it, logs the count, and falls back to auto-binding the
 `DEMO_MODEL_*` roles when it is zero. `doctor.sh` prints the same count.
 

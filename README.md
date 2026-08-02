@@ -46,10 +46,13 @@ is unchanged and still boots keyless everywhere else.
    LiteLLM trial key** as `DP_AI_VIRTUAL_KEY`, and runs
    [`.devpanel/init-container.sh`](.devpanel/init-container.sh) → which imports the
    baked database and calls [`.devpanel/wire-ai.sh`](.devpanel/wire-ai.sh) to:
-   - enable `ai_provider_litellm`,
+   - connect the proxy as **`openai_compatible`** — no module is installed, because the
+     set of providers Atelier can serve *is* the set of adapters it ships (there is no
+     `litellm` provider id since the `drupal/ai` teardown),
    - store the key as an **env-provider** Key entity (`DP_AI_VIRTUAL_KEY`, read live —
-     never persisted to config/State/DB, so it is never baked into the image) and point
-     the provider at `DP_AI_HOST` (default `https://ai.drupalforge.org`),
+     never persisted to config/State/DB, so it is never baked into the image), point
+     `aincient.provider.openai_compatible: api_key` at it, and store `DP_AI_HOST`
+     (default `https://ai.drupalforge.org`) in `aincient.openai_compatible_endpoint`,
    - **stop there.** Model roles are left unbound and onboarding is left incomplete, so
      the visitor gets the real first-run wizard with the trial key already connected.
 
@@ -62,15 +65,16 @@ explanation of what Atelier is (roles, not one hardcoded model). Auto-wiring it 
 the product's own idea, and it also meant every visitor spent the shared trial budget on
 whatever *we* picked.
 
-So a visitor sees: name → providers, with **LiteLLM already "Connected"** and their own
-key addable → models, one click → the console. No key required, nothing to skip.
+So a visitor sees: name → providers, with the proxy already **"Connected"** (as
+*OpenAI-compatible endpoint*) and their own key addable → models, one click → the
+console. No key required, nothing to skip.
 
 `wire-ai.sh` guards the one way that can go wrong: the models step is populated through
-the provider plugin's own `/model/info` call, so if the proxy answers in a shape the
-plugin can't read, the pool is empty and the visitor is stranded. The script probes it
-(`ProviderConnector::modelsForStored('litellm')`), logs the count, and **falls back to
-the old auto-bound behaviour** if it comes back zero. `DEMO_ONBOARDING=0` forces that
-fallback deliberately.
+the adapter's own `GET <base>/v1/models` call, so if the proxy answers in a shape the
+adapter can't read, the pool is empty and the visitor is stranded. The script probes it
+(`ProviderConnector::modelsForStored('openai_compatible')`), logs the count, and **falls
+back to the old auto-bound behaviour** if it comes back zero. `DEMO_ONBOARDING=0` forces
+that fallback deliberately.
 
 Full detail, including every script and when it runs:
 [`.devpanel/README.md`](.devpanel/README.md).
@@ -147,9 +151,21 @@ On a hosted instance itself, `.devpanel/doctor.sh` prints a full read-only diagn
   profiles keep the `fast` tier cheap in every case, and only `reasoning` (page and
   brand builds) ever lands on an expensive model. Don't quote a page count until real
   hosted runs are observed.
-- The curated profiles resolve against a proxy catalogue on purpose: LiteLLM serves
-  other vendors' models under `vendor/model` ids, and `ModelPresetResolver` tries the
-  document's candidates against proxy providers in a second pass (a direct key always
-  wins first). Without that, all three tiers would collapse to "the first model in the
-  list" here and the question would be theatre.
+- **The curated profiles no longer resolve through the proxy here, and that is a known
+  cost of the `openai_compatible` migration.** `ModelPresetResolver` looks *through* a
+  provider it knows to be a proxy — matching the document's candidates against the
+  vendor named inside a `vendor/model` id — but that second pass is gated on
+  `isProxy()`, and `openai_compatible` reports `FALSE` (in the general case its ids are
+  the vendor's own, unnamespaced; this host happens to namespace them, which the product
+  cannot know per-deployment). So the three tiers fall back to "first model in the pool"
+  and every model carries the `untested` badge. The wizard still works and the question
+  is still asked — it is just less opinionated than on a direct-key install. Restoring
+  it means either a `litellm` adapter with `isProxy() === TRUE` or making `isProxy()`
+  derive from the catalogue's shape.
+- The one piece of proxy-awareness that **does** survive is the dead-vendor guard, because
+  `wire-ai.sh` re-expresses it in this provider's own identity: it writes
+  `avoid: ["openai_compatible:anthropic/"]` rather than `["anthropic:*"]`. `isAvoided()`
+  splits on the first colon and substring-matches the rest, so the needle `anthropic/`
+  still catches every model that vendor serves through the proxy — no `isProxy()`
+  required. Get this shape wrong and the guard silently stops guarding.
 - Adapted from the reference [`drupalforge/drupal_cms_ai_demo`](https://github.com/drupalforge/drupal_cms_ai_demo).

@@ -11,23 +11,43 @@
 # 0149). A pre-seeded trial key is a DevPanel concept, so it is injected here and
 # only here — a self-hosted install is untouched.
 #
+# WHICH PROVIDER THIS CONNECTS, AND WHY IT CHANGED. It used to be
+# `ai_provider_litellm`, a `drupal/ai` provider plugin. Atelier is off `drupal/ai`
+# entirely (DECISIONS 0281–0299): inference runs on our own adapters over
+# symfony/ai, there is no `ai` module on the site, and `litellm` is no longer a
+# provider id at all. The proxy is now reached through `openai_compatible` — the
+# adapter for anything that speaks the OpenAI chat-completions shape, which is
+# precisely what a LiteLLM proxy is. Nothing is installed: the set of providers
+# Atelier can serve IS the set of tagged adapters, so connecting one means storing
+# a credential and a base URL, and that is all this script does.
+#
 # WHAT THIS DOES AND DOES NOT DO. It connects the PROVIDER, and declares which
 # vendors this proxy cannot actually serve (see "Which vendors can this proxy
 # actually SERVE?" below). It deliberately does NOT bind model roles
 # or mark onboarding complete, so the visitor gets the real first-run wizard —
-# name, providers (LiteLLM already showing "Connected", theirs addable), then the
+# name, providers (the proxy already showing "Connected", theirs addable), then the
 # one question the models step leads with: best value / balanced / best quality.
 # Choosing models is a 20-second step now that it is one question over three
 # tiers, and it is the step that teaches what Atelier actually is — roles, not one
 # hardcoded model. Auto-wiring it away was hiding the product's own idea.
 #
 # The one thing that can break that: the models step needs a non-empty chat pool,
-# which the product enumerates through the provider plugin's own /model/info call
-# — a path the old auto-wiring never used (it read /v1/models here and bound the
-# names directly). If the proxy answers in a shape the plugin can't read, the pool
-# is empty and the visitor cannot finish. So we CHECK, and fall back to the old
-# behaviour when the check fails: a demo that skips onboarding still beats a demo
-# nobody can get out of. Either way the outcome is logged (see dp_start_log).
+# which the product enumerates through the adapter's own /v1/models call. If the
+# proxy answers in a shape the adapter can't read, the pool is empty and the
+# visitor cannot finish. So we CHECK, and fall back to the old behaviour when the
+# check fails: a demo that skips onboarding still beats a demo nobody can get out
+# of. Either way the outcome is logged (see dp_start_log).
+#
+# KNOWN DEGRADATION, ACCEPTED. `openai_compatible` reports isProxy() === FALSE,
+# because in the general case its model ids are the upstream vendor's own
+# (`deepseek-v4-pro`), not vendor-namespaced. THIS proxy namespaces them
+# (`openai/gpt-5.4`), but the product cannot know that per-deployment, so the
+# proxy-aware halves of our curation do not fire here: the wizard's tier presets
+# fall back to first-in-pool rather than matching a curated model, and every model
+# carries the `untested` badge. The demo still works; it is just less opinionated
+# than a direct-key install. The one piece of proxy-awareness that DOES survive is
+# the dead-vendor guard below, because it is re-expressed in this provider's own
+# identity rather than relying on isProxy().
 #
 # Env:
 #   DP_AI_VIRTUAL_KEY  the trial key (unset ⇒ nothing happens, demo stays keyless)
@@ -45,6 +65,9 @@ cd "${APP_ROOT:?APP_ROOT must be set}"
 export PATH="$APP_ROOT/vendor/bin:$PATH"
 
 DP_AI_HOST="${DP_AI_HOST:-https://ai.drupalforge.org}"
+
+# The provider id the proxy is connected as. Not `litellm` — see the header.
+DP_PROVIDER='openai_compatible'
 
 # Per-role models for the FALLBACK path only (see the header): what to bind if the
 # wizard could not be handed a usable model list, or if DEMO_ONBOARDING=0 asks for
@@ -71,18 +94,47 @@ if [ -z "${DP_AI_VIRTUAL_KEY:-}" ]; then
   exit 0
 fi
 
-echo "wire-ai: enabling ai_provider_litellm"
-drush -n pm:install ai_provider_litellm -y
+# --- Is this graft new enough to wire? --------------------------------------
+# The whole script assumes the adapter set. An older grafted atelier-cms image
+# predates it and has no `openai_compatible` provider, in which case every step
+# below would "succeed" while wiring nothing — the failure mode that is worth a
+# hard stop, because it surfaces to a visitor as a demo with no AI and no
+# explanation. Ask the product directly.
+# Marker-matched rather than exit-code-matched: `exit()` inside php:eval ends the
+# drush process mid-bootstrap, and its shutdown handlers are entitled to rewrite
+# the status. A string we printed ourselves cannot be rewritten by anything.
+DP_HAS_ADAPTER="$(
+  drush -n php:eval "
+    print isset(\Drupal::service('aincient_core.inference.registry')->adapters()['${DP_PROVIDER}'])
+      ? 'ATELIER_ADAPTER=yes' : 'ATELIER_ADAPTER=no';
+  " 2>&1 || true
+)"
+if ! printf '%s' "$DP_HAS_ADAPTER" | grep -q 'ATELIER_ADAPTER=yes'; then
+  echo "wire-ai: adapter probe said: $DP_HAS_ADAPTER" >&2
+  echo "wire-ai: FATAL — this Atelier graft has no '${DP_PROVIDER}' provider." >&2
+  echo "wire-ai:         Bump .devpanel/Dockerfile's atelier-cms tag to an image built" >&2
+  echo "wire-ai:         after the drupal/ai teardown (DECISIONS 0295–0299)." >&2
+  exit 1
+fi
+echo "wire-ai: connecting the proxy as '${DP_PROVIDER}'"
 
 # Store the key as an ENV-provider Key entity: the secret is read live out of the
 # container environment on every request, so it is never written to config, State
 # or the database — and therefore never ends up inside the image's database dump.
 # Each demo container consequently uses its own injected key.
-if drush -n config:get key.key.litellm_api_key id >/dev/null 2>&1; then
-  echo "wire-ai: key entity litellm_api_key already present"
+#
+# This is the ONE thing the demo does differently from a wizard-connected install,
+# which puts the key in State. It is why `aincient.provider.<id>: api_key` exists
+# as a read path in PlatformRegistry::credentialFor(): a pointer at a Key entity,
+# consulted before the State convention, so a deployment can choose where its
+# secret actually lives. Without the pointer the env entity would simply be
+# ignored and the demo would fall through to an empty State value.
+DP_KEY_ENTITY="${DP_PROVIDER}_default_key"
+if drush -n config:get "key.key.${DP_KEY_ENTITY}" id >/dev/null 2>&1; then
+  echo "wire-ai: key entity ${DP_KEY_ENTITY} already present"
 else
-  echo "wire-ai: creating the litellm_api_key entity (env provider)"
-  drush -n key:save litellm_api_key \
+  echo "wire-ai: creating the ${DP_KEY_ENTITY} entity (env provider)"
+  drush -n key:save "${DP_KEY_ENTITY}" \
     --label="LiteLLM trial key (DevPanel)" \
     --key-type=authentication \
     --key-provider=env \
@@ -90,10 +142,18 @@ else
     --key-provider-settings='{"env_variable":"DP_AI_VIRTUAL_KEY","base64_encoded":false,"strip_line_breaks":true}'
 fi
 
-echo "wire-ai: pointing ai_provider_litellm at $DP_AI_HOST"
-drush -n config:set ai_provider_litellm.settings api_key litellm_api_key -y
-drush -n config:set ai_provider_litellm.settings host "$DP_AI_HOST" -y
-drush -n config:set ai_provider_litellm.settings moderation false --input-format=yaml -y
+# Point the provider at that entity, and store the base URL under the SAME State
+# convention a wizard-connected OpenAI-compatible endpoint uses
+# (`aincient.<provider>_endpoint`) — so a headlessly wired demo and a
+# hand-connected install are byte-identical apart from where the secret lives.
+echo "wire-ai: pointing ${DP_PROVIDER} at $DP_AI_HOST"
+DP_KEY_ENTITY="$DP_KEY_ENTITY" DP_PROVIDER="$DP_PROVIDER" drush -n php:eval '
+  \Drupal::configFactory()
+    ->getEditable("aincient.provider." . getenv("DP_PROVIDER"))
+    ->set("api_key", getenv("DP_KEY_ENTITY"))
+    ->save();
+'
+drush -n state:set "aincient.${DP_PROVIDER}_endpoint" "$DP_AI_HOST"
 drush -n cache:rebuild
 
 # Ask the proxy which models it actually offers. This is the only place that list
@@ -215,15 +275,34 @@ fi
 # Rebuild `avoid` wholesale — including back to empty. `prefer` is left alone:
 # this is a statement about what the proxy CANNOT do, and the curated document is
 # perfectly capable of choosing among what remains.
-DP_DEAD_VENDORS="$DP_DEAD_VENDORS" drush -n php:eval '
+#
+# THE PATTERN SHAPE MATTERS, and it changed with the provider. It used to be
+# `anthropic:*`, which worked because `litellm` was a declared proxy provider and
+# ModelPresetResolver::isAvoided() therefore tested each pool entry under a SECOND
+# identity — the vendor named inside its own model id. `openai_compatible` is not
+# a declared proxy (its ids are usually the vendor's own, unnamespaced), so that
+# second identity is never derived and `anthropic:*` would match nothing at all —
+# a guard that silently stops guarding, which is worse than no guard.
+#
+# So the exclusion is written in THIS provider's own identity instead:
+# `openai_compatible:anthropic/`. isAvoided() splits on the first colon, giving
+# vendor `openai_compatible` (which every pool entry here matches) and needle
+# `anthropic/`, and the needle test is a substring match — so it catches
+# `anthropic/claude-sonnet-5` and every other model the vendor serves through
+# this proxy. Same outcome, no reliance on isProxy().
+DP_DEAD_VENDORS="$DP_DEAD_VENDORS" DP_PROVIDER="$DP_PROVIDER" drush -n php:eval '
   $config = \Drupal::configFactory()->getEditable("aincient_core.model_preferences");
   if ($config->isNew()) {
     // An older grafted image, from before model preferences existed.
     print "ATELIER_PREFS=unsupported";
     return;
   }
+  $provider = (string) getenv("DP_PROVIDER");
   $dead = array_values(array_filter(explode(" ", (string) getenv("DP_DEAD_VENDORS"))));
-  $config->set("avoid", array_map(static fn (string $v): string => $v . ":*", $dead))->save();
+  $config->set("avoid", array_map(
+    static fn (string $v): string => $provider . ":" . $v . "/",
+    $dead,
+  ))->save();
   print "ATELIER_PREFS=" . (count($dead) ? implode(",", $dead) : "none");
 ' || echo "wire-ai: WARNING — could not write aincient_core.model_preferences."
 echo
@@ -232,8 +311,8 @@ drush -n cache:rebuild
 
 # --- Can the wizard actually offer models? ----------------------------------
 # The question is NOT what /v1/models says above, it is what the PRODUCT sees:
-# ProviderConnector::modelsForStored('litellm') → the provider plugin → GET
-# /model/info, whose chat list is everything with `model_info.mode == "chat"`.
+# ProviderConnector::modelsForStored('openai_compatible') → the adapter →
+# GET <base>/v1/models, minus anything that looks like an embedding model.
 # Ask exactly that, so the answer is the one the visitor's models step will get.
 # Marker-delimited so a stray drush notice can't be read as a model count.
 DP_WIZARD_MODELS=0
@@ -243,7 +322,7 @@ if [ "${DEMO_ONBOARDING:-1}" != "0" ]; then
   DP_PROBE="$(
     drush -n php:eval "
       try {
-        \$models = \Drupal::service('aincient_onboarding.provider_connector')->modelsForStored('litellm');
+        \$models = \Drupal::service('aincient_onboarding.provider_connector')->modelsForStored('${DP_PROVIDER}');
         print 'ATELIER_CHAT_MODELS=' . count(\$models['chat']);
       }
       catch (\Throwable \$e) {
@@ -270,7 +349,7 @@ fi
 if [ "${DEMO_ONBOARDING:-1}" = "0" ]; then
   echo "wire-ai: DEMO_ONBOARDING=0 — auto-binding models and skipping the wizard."
 else
-  echo "wire-ai: WARNING — the product cannot enumerate the proxy's chat models (${DP_AI_HOST%/}/model/info),"
+  echo "wire-ai: WARNING — the product cannot enumerate the proxy's chat models (${DP_AI_HOST%/}/v1/models),"
   echo "wire-ai:           so the models step would be empty. Falling back to auto-bound roles."
 fi
 
@@ -299,9 +378,10 @@ MODEL_TASK="$(dp_pick_model task "$DEMO_MODEL_TASK")"
 MODEL_FAST="$(dp_pick_model fast "$DEMO_MODEL_FAST")"
 MODEL_VISION="$(dp_pick_model vision "$DEMO_MODEL_VISION")"
 
-# Bind the model roles and project them onto ai.settings + flowdrop_chat — the
-# exact API the onboarding wizard uses, so the demo lands in the same state a
-# human-completed setup would.
+# Bind the model roles and project them, using the exact API the onboarding wizard
+# uses, so the demo lands in the same state a human-completed setup would.
+# project() writes the default role onto flowdrop_chat and invalidates the model
+# cache — it no longer touches `ai.settings`, which does not exist on the site.
 #
 # The `image` role is deliberately left UNBOUND: the proxy exposes no image-
 # generation model, and an unbound image role makes the media/Library AI-generate
@@ -313,10 +393,10 @@ echo "wire-ai: binding vision    → $MODEL_VISION"
 echo "wire-ai: leaving image unbound (no image model on the proxy)"
 drush -n php:eval "
   \$r = \Drupal::service('aincient_core.model_role_resolver');
-  \$r->bind('reasoning', 'litellm', '${MODEL_REASONING}');
-  \$r->bind('task', 'litellm', '${MODEL_TASK}');
-  \$r->bind('fast', 'litellm', '${MODEL_FAST}');
-  \$r->bind('vision', 'litellm', '${MODEL_VISION}');
+  \$r->bind('reasoning', '${DP_PROVIDER}', '${MODEL_REASONING}');
+  \$r->bind('task', '${DP_PROVIDER}', '${MODEL_TASK}');
+  \$r->bind('fast', '${DP_PROVIDER}', '${MODEL_FAST}');
+  \$r->bind('vision', '${DP_PROVIDER}', '${MODEL_VISION}');
   \$r->project();
 "
 

@@ -105,16 +105,22 @@ hdr 'AI wiring'
 # visitor does onboarding themselves (wire-ai.sh only connects the provider). Both
 # set means wire-ai.sh took its fallback path, or someone finished the wizard.
 printf 'onboarding completed  %s\n' "$(drush state:get aincient_onboarding.completed 2>&1)"
-drush config:get ai_provider_litellm.settings 2>&1 | sed 's/^/      /'
-drush config:get key.key.litellm_api_key key_provider_settings 2>&1 | sed 's/^/      /'
+# The proxy is connected as `openai_compatible`, not `litellm` — there is no
+# `litellm` provider id since the drupal/ai teardown (see wire-ai.sh's header).
+# Three things to see: the pointer at the Key entity, that the entity is an ENV
+# provider (so no secret is in the database), and the base URL it will call.
+drush config:get aincient.provider.openai_compatible 2>&1 | sed 's/^/      /'
+drush config:get key.key.openai_compatible_default_key key_provider_settings 2>&1 | sed 's/^/      /'
+printf 'endpoint  %s\n' "$(drush state:get aincient.openai_compatible_endpoint 2>&1)"
+drush config:get aincient_core.model_preferences avoid 2>&1 | sed 's/^/      /'
 drush config:get aincient_core.model_roles roles 2>&1 | sed 's/^/      /'
-# The models step's pool, read the way the product reads it (GET /model/info via
-# the provider plugin). Zero here means the wizard cannot offer anything, which is
-# the one failure mode that would strand a visitor mid-onboarding.
+# The models step's pool, read the way the product reads it (the adapter's own
+# GET <base>/v1/models). Zero here means the wizard cannot offer anything, which
+# is the one failure mode that would strand a visitor mid-onboarding.
 printf 'chat models the wizard can offer  %s\n' "$(
   drush -n php:eval "
     try {
-      \$m = \Drupal::service('aincient_onboarding.provider_connector')->modelsForStored('litellm');
+      \$m = \Drupal::service('aincient_onboarding.provider_connector')->modelsForStored('openai_compatible');
       print count(\$m['chat']) . ' chat / ' . count(\$m['image']) . ' image';
     }
     catch (\Throwable \$e) {
