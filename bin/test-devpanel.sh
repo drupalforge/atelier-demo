@@ -193,7 +193,22 @@ run_freshdb() {
   start_db || return
   docker run -d --name dpt-p2 --network $NET -p "$((PORT+2)):80" -v dpt-vol:/var/www/html \
     "${APP_ENV[@]}" "${DB_ENV[@]}" -e CODES_ENABLE=no "$IMAGE" >/dev/null
-  sleep 25   # let the startup seed in custom_package_installer.sh do its work
+
+  # POLL, do not sleep a fixed interval. This was `sleep 25`, and the seed in
+  # custom_package_installer.sh takes about 40s on a developer laptop — so the
+  # scenario reported `homepage → 000` on a container that was seeding correctly
+  # and would answer 200 fifteen seconds later. Both assertions then failed, on
+  # the PUBLISHED image as well as a local build, which makes the one scenario
+  # that reproduces a real hosted outage read as permanently broken — and a test
+  # that always fails is a test nobody reads. Waiting for the condition instead of
+  # guessing at its duration also stops this from re-breaking on a slower machine.
+  printf '  waiting for the startup seed'
+  for _ in $(seq 1 40); do
+    [ "$(http "http://localhost:$((PORT+2))/")" = 200 ] && break
+    printf '.'
+    sleep 3
+  done
+  echo
 
   local code redirect
   code=$(http "http://localhost:$((PORT+2))/")
