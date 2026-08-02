@@ -151,17 +151,21 @@ On a hosted instance itself, `.devpanel/doctor.sh` prints a full read-only diagn
   profiles keep the `fast` tier cheap in every case, and only `reasoning` (page and
   brand builds) ever lands on an expensive model. Don't quote a page count until real
   hosted runs are observed.
-- **The curated profiles no longer resolve through the proxy here, and that is a known
-  cost of the `openai_compatible` migration.** `ModelPresetResolver` looks *through* a
-  provider it knows to be a proxy — matching the document's candidates against the
-  vendor named inside a `vendor/model` id — but that second pass is gated on
-  `isProxy()`, and `openai_compatible` reports `FALSE` (in the general case its ids are
-  the vendor's own, unnamespaced; this host happens to namespace them, which the product
-  cannot know per-deployment). So the three tiers fall back to "first model in the pool"
-  and every model carries the `untested` badge. The wizard still works and the question
-  is still asked — it is just less opinionated than on a direct-key install. Restoring
-  it means either a `litellm` adapter with `isProxy() === TRUE` or making `isProxy()`
-  derive from the catalogue's shape.
+- **The curated profiles still do not resolve through the proxy here — a known cost of
+  the `openai_compatible` migration — but the tiers are no longer one model.**
+  `ModelPresetResolver` looks *through* a provider it knows to be a proxy, matching the
+  document's candidates against the vendor named inside a `vendor/model` id, and that
+  second pass is gated on `isProxy()`, which `openai_compatible` reports as `FALSE` (in
+  the general case its ids are the vendor's own, unnamespaced; this host happens to
+  namespace them, which the product cannot know per-deployment). The part that made this
+  visibly broken was separate and is fixed: the provider had no `ModelRoles::tierHints()`
+  entry, so with the document unreachable *and* no hints, every role ended at "the first
+  model in the pool" — and on this proxy that first model was `openai/*`, a LiteLLM
+  wildcard group rather than anything callable. The adapter now drops wildcard groups and
+  non-chat modalities from the catalogue, and `openai_compatible` carries the family
+  needles `litellm` had. Models still show the `untested` badge and the picks are
+  family-approximate rather than curated; closing that needs `isProxy()` derived from the
+  catalogue's shape.
 - The one piece of proxy-awareness that **does** survive is the dead-vendor guard, because
   `wire-ai.sh` re-expresses it in this provider's own identity: it writes
   `avoid: ["openai_compatible:anthropic/"]` rather than `["anthropic:*"]`. `isAvoided()`

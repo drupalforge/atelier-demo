@@ -43,11 +43,23 @@
 # (`deepseek-v4-pro`), not vendor-namespaced. THIS proxy namespaces them
 # (`openai/gpt-5.4`), but the product cannot know that per-deployment, so the
 # proxy-aware halves of our curation do not fire here: the wizard's tier presets
-# fall back to first-in-pool rather than matching a curated model, and every model
-# carries the `untested` badge. The demo still works; it is just less opinionated
-# than a direct-key install. The one piece of proxy-awareness that DOES survive is
-# the dead-vendor guard below, because it is re-expressed in this provider's own
-# identity rather than relying on isProxy().
+# cannot match a model the curated document names, and every model carries the
+# `untested` badge. The demo still works; it is just less opinionated than a
+# direct-key install.
+#
+# What that degradation is NOT any more is "all three tiers are the same model".
+# That was a second, separate hole, found on the first live demo and fixed in the
+# product: `openai_compatible` had no ModelRoles::tierHints() entry, so with the
+# document unreachable AND no hints every role ended at "the first model in the
+# pool" — which on this proxy was `openai/*`, a LiteLLM wildcard GROUP that no
+# turn could have called. The adapter now drops wildcard groups and non-chat
+# modalities from its catalogue, and the provider has the family needles
+# `litellm` used to carry. If a demo ever shows four identical roles again, that
+# entry is the first thing to check.
+#
+# The other piece of proxy-awareness that survives without isProxy() is the
+# dead-vendor guard below, because it is re-expressed in this provider's own
+# identity.
 #
 # Env:
 #   DP_AI_VIRTUAL_KEY  the trial key (unset ⇒ nothing happens, demo stays keyless)

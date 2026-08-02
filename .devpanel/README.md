@@ -118,16 +118,18 @@ three tiers (best value / balanced / best quality). It is a 20-second step that 
 the product's central idea; auto-wiring it away hid that, and spent the shared trial
 budget on our pick rather than theirs.
 
-**The three profiles no longer resolve to different models here.** They used to:
-`ModelPresetResolver` tries the curated document's candidates against **proxy providers**
-in a second pass, matching the vendor named inside a `vendor/model` id. That pass is gated
-on `isProxy()`, and since the `drupal/ai` teardown this proxy is connected as
-`openai_compatible`, which reports `FALSE` — its ids are usually the vendor's own and
-unnamespaced, and the product cannot know that *this* host namespaces them. So all three
-tiers collapse to "the first model in the pool" and every model shows the `untested`
-badge. The question is still asked and the demo still works; it is simply not opinionated
-here. Fixing it needs either a `litellm` adapter declaring `isProxy() === TRUE` or an
-`isProxy()` derived from the catalogue's shape.
+**The curated document still does not resolve through this proxy, but the tiers are no
+longer identical.** `ModelPresetResolver` tries the document's candidates against **proxy
+providers** in a second pass, matching the vendor named inside a `vendor/model` id — and
+that pass is gated on `isProxy()`, which `openai_compatible` reports as `FALSE` (its ids
+are usually the vendor's own and unnamespaced; the product cannot know that *this* host
+namespaces them). What was missing on top of that was any fallback at all: the provider
+had no `ModelRoles::tierHints()` entry, so every role fell through to "the first model in
+the pool" and all four resolved to the same id. It has one now — the same family needles
+`litellm` carried — so `reasoning`, `task` and `fast` land on models of roughly the right
+cost. Models still show the `untested` badge (that lookup is `isProxy()`-gated too), and
+the picks are family-approximate rather than the curated document's. Closing the gap
+properly needs `isProxy()` derived from the catalogue's shape.
 
 **What still works is the dead-vendor guard,** because `wire-ai.sh` writes it in the
 connected provider's own identity — `avoid: ["openai_compatible:anthropic/"]`, not
