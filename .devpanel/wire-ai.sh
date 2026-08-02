@@ -81,9 +81,7 @@ DP_AI_HOST="${DP_AI_HOST:-https://ai.drupalforge.org}"
 # The provider id the proxy is connected as. Not `litellm` — see the header.
 DP_PROVIDER='openai_compatible'
 
-# Per-role models for the FALLBACK path only (see the header): what to bind if the
-# wizard could not be handed a usable model list, or if DEMO_ONBOARDING=0 asks for
-# the old auto-wired demo.
+# Per-role model preferences for THIS proxy.
 #
 #   reasoning → page and brand builds: structured JSON + tool calling
 #   task      → the everyday console turn
@@ -91,15 +89,27 @@ DP_PROVIDER='openai_compatible'
 #   vision    → alt text and captions. Safe to bind: it carries no operation-type
 #               projection, so it cannot clobber the tier that owns chat vision.
 #
-# Each is a *preference list*, because the proxy decides which model IDs exist and
-# this repo cannot know: the list is walked against the proxy's own /v1/models and
-# the first one actually offered is bound, with claude-haiku-4-5 as a known-good
-# tail. DEMO_MODEL, if set, replaces all four (the old behaviour: one model
-# everywhere).
-DEMO_MODEL_REASONING="${DEMO_MODEL_REASONING:-${DEMO_MODEL:-openai/gpt-5.4,anthropic/claude-haiku-4-5}}"
-DEMO_MODEL_TASK="${DEMO_MODEL_TASK:-${DEMO_MODEL:-gemini/gemini-3.5-flash,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5}}"
-DEMO_MODEL_FAST="${DEMO_MODEL_FAST:-${DEMO_MODEL:-openai/gpt-5.4-mini,gemini/gemini-3.5-flash,anthropic/claude-haiku-4-5}}"
-DEMO_MODEL_VISION="${DEMO_MODEL_VISION:-${DEMO_MODEL:-gemini/gemini-3.5-flash,openai/gpt-5.4}}"
+# Each is an ordered *preference list*, because the proxy decides which model IDs
+# exist and this repo cannot know. They are used TWICE: written to
+# `aincient_core.model_preferences:prefer` so the wizard's tiers land here (see
+# below), and walked against /v1/models on the fallback path. DEMO_MODEL, if set,
+# replaces all four (the old behaviour: one model everywhere).
+#
+# WHY THE 4.1 GENERATION AND NOT GPT-5. Verified by hand against this proxy on
+# 2026-08-03: these four answer, and the GPT-5 family does not. The reason is not
+# capability, it is one field — GPT-5 models reject `max_tokens` (they want
+# `max_completion_tokens`), and EVERY Atelier turn sends `max_tokens`
+# (`ChatCompleter`, `SymfonyAiReasoner`), which `OpenAiCompatibleAdapter` passes
+# through verbatim because that spelling IS the chat-completions shape. So a
+# gpt-5 id here would enumerate fine, bind fine, and 400 on the first real turn.
+# The same trap already caught this script's own vendor probe, which works
+# around it by sending no cap at all — a luxury the product does not have.
+# Anthropic is deliberately absent: the probe below routinely finds no working
+# Anthropic credential on this host and excludes the whole vendor.
+DEMO_MODEL_REASONING="${DEMO_MODEL_REASONING:-${DEMO_MODEL:-openai/gpt-4.1,openai/gpt-4o}}"
+DEMO_MODEL_TASK="${DEMO_MODEL_TASK:-${DEMO_MODEL:-openai/gpt-4.1,openai/gpt-4o}}"
+DEMO_MODEL_FAST="${DEMO_MODEL_FAST:-${DEMO_MODEL:-openai/gpt-4.1-mini,openai/gpt-4.1}}"
+DEMO_MODEL_VISION="${DEMO_MODEL_VISION:-${DEMO_MODEL:-openai/gpt-4o,openai/gpt-4.1}}"
 
 if [ -z "${DP_AI_VIRTUAL_KEY:-}" ]; then
   echo "wire-ai: DP_AI_VIRTUAL_KEY is unset — leaving the demo keyless (the onboarding wizard will show)."
@@ -284,9 +294,31 @@ else
   echo "wire-ai: every vendor this proxy lists answered; declaring no exclusions."
 fi
 
-# Rebuild `avoid` wholesale — including back to empty. `prefer` is left alone:
-# this is a statement about what the proxy CANNOT do, and the curated document is
-# perfectly capable of choosing among what remains.
+# Rebuild `avoid` AND `prefer` wholesale — including back to empty.
+#
+# `avoid` states what this proxy CANNOT do. `prefer` states what it should reach
+# for, and it is written here for a reason the curated document cannot cover:
+# through `openai_compatible` the document is UNREACHABLE (its candidates are
+# tried against declared proxies only, and this provider reports
+# isProxy() === FALSE), so without `prefer` the tiers fall to
+# ModelRoles::tierHints() — family needles that will happily land on a gpt-5 id
+# this proxy enumerates and then 400s on, because of the `max_tokens` spelling
+# documented at the top of this file. The four ids in DEMO_MODEL_* were verified
+# by hand to answer here; `prefer` is the supported way for a deployment to say
+# so, resolved as its own pass ahead of everything else.
+#
+# MEASURED, against a pool shaped like this proxy's (2026-08-03). Without
+# `prefer`, the tier hints put BOTH reasoning and task on `openai/gpt-5.6-sol` —
+# a gpt-5 id, i.e. exactly the 400 described above. So this is not a refinement
+# of a working demo; it is what makes the demo work at all.
+#
+# `prefer` is keyed by ROLE, not by profile, so all three profiles resolve
+# identically with it set. That costs nothing here, and it is worth being precise
+# about why: they were ALREADY identical without it. Tier hints carry no notion
+# of a profile, and the curated document — the only thing that distinguishes
+# best value from best quality — cannot be reached through this provider at all.
+# The three-profile collapse is owned by isProxy(), not by this write; removing
+# `prefer` would restore nothing except the 400.
 #
 # THE PATTERN SHAPE MATTERS, and it changed with the provider. It used to be
 # `anthropic:*`, which worked because `litellm` was a declared proxy provider and
@@ -302,7 +334,10 @@ fi
 # `anthropic/`, and the needle test is a substring match — so it catches
 # `anthropic/claude-sonnet-5` and every other model the vendor serves through
 # this proxy. Same outcome, no reliance on isProxy().
-DP_DEAD_VENDORS="$DP_DEAD_VENDORS" DP_PROVIDER="$DP_PROVIDER" drush -n php:eval '
+DP_DEAD_VENDORS="$DP_DEAD_VENDORS" DP_PROVIDER="$DP_PROVIDER" \
+DP_PREFER_REASONING="$DEMO_MODEL_REASONING" DP_PREFER_TASK="$DEMO_MODEL_TASK" \
+DP_PREFER_FAST="$DEMO_MODEL_FAST" DP_PREFER_VISION="$DEMO_MODEL_VISION" \
+drush -n php:eval '
   $config = \Drupal::configFactory()->getEditable("aincient_core.model_preferences");
   if ($config->isNew()) {
     // An older grafted image, from before model preferences existed.
@@ -314,8 +349,32 @@ DP_DEAD_VENDORS="$DP_DEAD_VENDORS" DP_PROVIDER="$DP_PROVIDER" drush -n php:eval 
   $config->set("avoid", array_map(
     static fn (string $v): string => $provider . ":" . $v . "/",
     $dead,
-  ))->save();
-  print "ATELIER_PREFS=" . (count($dead) ? implode(",", $dead) : "none");
+  ));
+
+  // The same comma-separated lists the fallback path walks, qualified with the
+  // provider id `prefer` is matched on. Roles whose list is empty are omitted
+  // rather than written as [], so an operator can blank one via the environment
+  // and get the ordinary resolution back for that role alone.
+  $prefer = [];
+  foreach (["reasoning", "task", "fast", "vision"] as $role) {
+    $models = array_values(array_filter(array_map(
+      "trim",
+      explode(",", (string) getenv("DP_PREFER_" . strtoupper($role))),
+    )));
+    if ($models !== []) {
+      $prefer[$role] = array_map(
+        static fn (string $m): string => $provider . ":" . $m,
+        $models,
+      );
+    }
+  }
+  $config->set("prefer", $prefer)->save();
+
+  print "ATELIER_PREFS=" . (count($dead) ? implode(",", $dead) : "none")
+    . " PREFER=" . implode(",", array_map(
+      static fn (array $v): string => reset($v),
+      $prefer,
+    ));
 ' || echo "wire-ai: WARNING — could not write aincient_core.model_preferences."
 echo
 

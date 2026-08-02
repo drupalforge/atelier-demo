@@ -113,6 +113,11 @@ drush config:get aincient.provider.openai_compatible 2>&1 | sed 's/^/      /'
 drush config:get key.key.openai_compatible_default_key key_provider_settings 2>&1 | sed 's/^/      /'
 printf 'endpoint  %s\n' "$(drush state:get aincient.openai_compatible_endpoint 2>&1)"
 drush config:get aincient_core.model_preferences avoid 2>&1 | sed 's/^/      /'
+# `prefer` is what pins the tiers to models this proxy can actually serve. Empty
+# here and the tiers fall to the tier hints, which land on a gpt-5 id that 400s
+# on `max_tokens` — see wire-ai.sh. So an empty `prefer` is a real finding, not
+# an unset optional.
+drush config:get aincient_core.model_preferences prefer 2>&1 | sed 's/^/      /'
 drush config:get aincient_core.model_roles roles 2>&1 | sed 's/^/      /'
 # The models step's pool, read the way the product reads it (the adapter's own
 # GET <base>/v1/models). Zero here means the wizard cannot offer anything, which
