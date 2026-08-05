@@ -503,14 +503,33 @@ MODEL_VISION="$(dp_pick_model vision "$DEMO_MODEL_VISION")"
 # project() writes the default role onto flowdrop_chat and invalidates the model
 # cache — it no longer touches `ai.settings`, which does not exist on the site.
 #
-# The `image` role is deliberately left UNBOUND: the proxy exposes no image-
-# generation model, and an unbound image role makes the media/Library AI-generate
-# affordances hide themselves entirely rather than being offered and then failing.
+# The `image` role is deliberately left UNBOUND, and an unbound image role makes
+# the media/Library AI-generate affordances hide themselves entirely rather than
+# being offered and then failing.
+#
+# CORRECTED 2026-08-06: this used to claim "the proxy exposes no image-generation
+# model", which was never checked. It does — `gemini/gemini-2.5-flash-image`,
+# `gemini/gemini-3.1-flash-image`, `gemini/gemini-3-pro-image` and six `imagen-*`
+# ids are all in its /v1/models. The role is unbound for a different and better
+# reason: the PRODUCT cannot reach them through this provider, at two layers.
+#   1. `OpenAiCompatibleAdapter::NON_CHAT_MARKERS` contains `image`, so every one
+#      of those ids (including `imagen-*`, by substring) is stripped from the
+#      catalogue. That filter was measured against THIS proxy.
+#   2. Image generation is gated behind `ImageGenerationAdapterInterface`, which
+#      only `GeminiAdapter` and `NanoBananaAdapter` implement. There is no seam on
+#      `openai_compatible` for an image model to plug into, filtered or not.
+# Serving images through a proxy was declined deliberately in the release that
+# added the Gemini image path: a listed model that fails at draw time turns a clear
+# "connect an image provider" into a mystery at the moment of use. Before that is
+# ever revisited, ONE request settles it — POST /v1/images/generations at this host
+# with the trial key. Unknown today, and the two warning signs are that gemini
+# rate-limits its own chat probe here and that Google's image models have no free
+# tier (they return 429 `limit: 0` on an unbilled key).
 echo "wire-ai: binding reasoning → $MODEL_REASONING"
 echo "wire-ai: binding task      → $MODEL_TASK"
 echo "wire-ai: binding fast      → $MODEL_FAST"
 echo "wire-ai: binding vision    → $MODEL_VISION"
-echo "wire-ai: leaving image unbound (no image model on the proxy)"
+echo "wire-ai: leaving image unbound (the proxy lists image models; the product cannot reach them via ${DP_PROVIDER})"
 drush -n php:eval "
   \$r = \Drupal::service('aincient_core.model_role_resolver');
   \$r->bind('reasoning', '${DP_PROVIDER}', '${MODEL_REASONING}');
