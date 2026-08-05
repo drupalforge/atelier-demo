@@ -140,41 +140,66 @@ if ! printf '%s' "$DP_HAS_ADAPTER" | grep -q 'ATELIER_ADAPTER=yes'; then
 fi
 echo "wire-ai: connecting the proxy as '${DP_PROVIDER}'"
 
-# Store the key as an ENV-provider Key entity: the secret is read live out of the
-# container environment on every request, so it is never written to config, State
-# or the database — and therefore never ends up inside the image's database dump.
-# Each demo container consequently uses its own injected key.
+# --- Is this graft new enough to read the key from the environment? ---------
+# The credential arrives through the ENVIRONMENT, bridged from DP_AI_VIRTUAL_KEY
+# to ATELIER_<PROVIDER>_API_KEY in .devpanel/settings.devpanel.php. Nothing here
+# writes a credential — which is the point: the secret never reaches config,
+# State or the database, so it cannot end up in the image's dump.
 #
-# This is the ONE thing the demo does differently from a wizard-connected install,
-# which puts the key in State. It is why `aincient.provider.<id>: api_key` exists
-# as a read path in PlatformRegistry::credentialFor(): a pointer at a Key entity,
-# consulted before the State convention, so a deployment can choose where its
-# secret actually lives. Without the pointer the env entity would simply be
-# ignored and the demo would fall through to an empty State value.
-DP_KEY_ENTITY="${DP_PROVIDER}_default_key"
-if drush -n config:get "key.key.${DP_KEY_ENTITY}" id >/dev/null 2>&1; then
-  echo "wire-ai: key entity ${DP_KEY_ENTITY} already present"
-else
-  echo "wire-ai: creating the ${DP_KEY_ENTITY} entity (env provider)"
-  drush -n key:save "${DP_KEY_ENTITY}" \
-    --label="LiteLLM trial key (DevPanel)" \
-    --key-type=authentication \
-    --key-provider=env \
-    --key-input=none \
-    --key-provider-settings='{"env_variable":"DP_AI_VIRTUAL_KEY","base64_encoded":false,"strip_line_breaks":true}'
+# This replaces the env-provider `key.key` entity plus the
+# `aincient.provider.<id>: api_key` pointer that expressed the same intent in
+# three moving parts (DECISIONS 0339). A graft older than that support ignores
+# the variable entirely and would leave a keyless demo with no explanation, so
+# ask the product directly — same marker-matched idiom as the adapter probe
+# above, and for the same reason.
+DP_HAS_ENV_CREDENTIALS="$(
+  drush -n php:eval "
+    print method_exists(\Drupal::service('aincient_core.inference.registry'), 'isEnvironmentManaged')
+      ? 'ATELIER_ENV_CREDENTIALS=yes' : 'ATELIER_ENV_CREDENTIALS=no';
+  " 2>&1 || true
+)"
+if ! printf '%s' "$DP_HAS_ENV_CREDENTIALS" | grep -q 'ATELIER_ENV_CREDENTIALS=yes'; then
+  echo "wire-ai: env-credential probe said: $DP_HAS_ENV_CREDENTIALS" >&2
+  echo "wire-ai: FATAL — this Atelier graft cannot read credentials from the environment." >&2
+  echo "wire-ai:         Bump .devpanel/Dockerfile's atelier-cms tag to an image built" >&2
+  echo "wire-ai:         after DECISIONS 0339." >&2
+  exit 1
 fi
 
-# Point the provider at that entity, and store the base URL under the SAME State
-# convention a wizard-connected OpenAI-compatible endpoint uses
-# (`aincient.<provider>_endpoint`) — so a headlessly wired demo and a
-# hand-connected install are byte-identical apart from where the secret lives.
+# Confirm the bridge actually reached the product, rather than assuming it: a
+# settings file that did not load, or a DP_PROVIDER mismatch, both look exactly
+# like a missing key at the first turn and nowhere earlier.
+DP_ENV_SEEN="$(
+  DP_PROVIDER="$DP_PROVIDER" drush -n php:eval "
+    print \Drupal::service('aincient_core.inference.registry')->isEnvironmentManaged(getenv('DP_PROVIDER'))
+      ? 'ATELIER_ENV_KEY=yes' : 'ATELIER_ENV_KEY=no';
+  " 2>&1 || true
+)"
+if ! printf '%s' "$DP_ENV_SEEN" | grep -q 'ATELIER_ENV_KEY=yes'; then
+  echo "wire-ai: env-key probe said: $DP_ENV_SEEN" >&2
+  echo "wire-ai: FATAL — DP_AI_VIRTUAL_KEY did not reach Atelier as ATELIER_$(printf '%s' "$DP_PROVIDER" | tr '[:lower:]' '[:upper:]')_API_KEY." >&2
+  echo "wire-ai:         Check that .devpanel/settings.devpanel.php is the settings file in use." >&2
+  exit 1
+fi
+echo "wire-ai: ${DP_PROVIDER} reads its key from the environment"
+
+# Clear the three-part wiring this replaced, if a volume or an older dump still
+# carries it. Harmless while it lingers — the environment is consulted first —
+# but leaving it would keep the `aincient.provider.*` read path alive in the
+# product for a demo that no longer uses it, which is the whole point of moving.
+if drush -n config:get "aincient.provider.${DP_PROVIDER}" api_key >/dev/null 2>&1; then
+  echo "wire-ai: removing the superseded credential pointer + key entity"
+  DP_PROVIDER="$DP_PROVIDER" drush -n php:eval '
+    \Drupal::configFactory()->getEditable("aincient.provider." . getenv("DP_PROVIDER"))->delete();
+  '
+  drush -n config:delete "key.key.${DP_PROVIDER}_default_key" 2>/dev/null || true
+fi
+
+# The base URL is NOT a secret and is stored the ordinary way, under the same
+# State convention a wizard-connected OpenAI-compatible endpoint uses — so a
+# headlessly wired demo and a hand-connected install differ only in where the
+# secret lives.
 echo "wire-ai: pointing ${DP_PROVIDER} at $DP_AI_HOST"
-DP_KEY_ENTITY="$DP_KEY_ENTITY" DP_PROVIDER="$DP_PROVIDER" drush -n php:eval '
-  \Drupal::configFactory()
-    ->getEditable("aincient.provider." . getenv("DP_PROVIDER"))
-    ->set("api_key", getenv("DP_KEY_ENTITY"))
-    ->save();
-'
 drush -n state:set "aincient.${DP_PROVIDER}_endpoint" "$DP_AI_HOST"
 drush -n cache:rebuild
 

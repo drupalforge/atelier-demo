@@ -78,3 +78,27 @@ if (getenv('DRUPALFORGE_DEVCONTAINER') && isset($_SERVER['HTTP_X_FORWARDED_HOST'
     Request::HEADER_X_FORWARDED_PROTO |
     Request::HEADER_X_FORWARDED_PORT;
 }
+
+// --- The trial key, handed to Atelier under the name it reads ---------------
+// DevPanel injects the per-container LiteLLM trial key as DP_AI_VIRTUAL_KEY, and
+// Atelier reads a provider's credential from ATELIER_<PROVIDER>_API_KEY. This is
+// the whole bridge between those two names.
+//
+// IT MUST HAPPEN HERE, in settings, and nowhere else: this file is included on
+// every request (and by every drush bootstrap), so the value lands in the
+// process that actually serves the turn. `init-container.sh` cannot do it — it
+// is a separate process, and nothing it exports reaches the php-fpm workers.
+//
+// The value is never written to config, State or the database, so it does not
+// reach the database dump baked into the published image. That property is the
+// entire reason the demo does this rather than storing a key the ordinary way,
+// and it is why the provider must be wired through the ENVIRONMENT rather than
+// through `wire-ai.sh` writing a credential.
+//
+// Atelier treats an environment-supplied key as BINDING: the console shows the
+// provider as "Set by this server" with no key field and no Disconnect, which is
+// the honest state for a demo container whose key it does not own.
+if ($dp_trial_key = getenv('DP_AI_VIRTUAL_KEY')) {
+  $dp_provider = getenv('DP_PROVIDER') ?: 'openai_compatible';
+  putenv('ATELIER_' . strtoupper($dp_provider) . '_API_KEY=' . $dp_trial_key);
+}

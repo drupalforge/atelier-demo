@@ -181,9 +181,19 @@ own the lifecycle — so there is nothing to fence off.
 
 ## Notes
 
-- The trial key's **value** is never baked into the image: `wire-ai.sh` stores it as
-  an **env-provider** `key.key` entity, read live from the container environment on
-  each request. Only the pointer is in the database dump.
+- The trial key's **value** is never baked into the image, and now nothing about it
+  is: `settings.devpanel.php` bridges DevPanel's `DP_AI_VIRTUAL_KEY` to the name
+  Atelier reads (`ATELIER_<PROVIDER>_API_KEY`), and the product resolves it from the
+  environment on every request. `wire-ai.sh` writes **no credential at all** — so
+  the dump carries neither a secret nor a pointer to one.
+  The bridge has to live in settings because that file is included per request (and
+  by every drush bootstrap); `init-container.sh` is a separate process and nothing
+  it exports reaches the php-fpm workers. This replaced an env-provider `key.key`
+  entity plus an `aincient.provider.<id>` config pointer — three moving parts for
+  what is now one variable (Atelier DECISIONS 0339).
+  Consequence in the console: the provider shows as **Set by this server**, with no
+  key field and no Disconnect, because Atelier treats an environment-supplied key as
+  binding. That is the honest state for a container whose key it does not own.
 - The base image is Debian trixie, whose packaged ImageMagick 7.1.1 can encode AVIF
   once `libheif-plugin-aomenc` is installed. Every Atelier image style converts to
   AVIF, so `init.sh` **fails the build** if that is not true — better a red build
