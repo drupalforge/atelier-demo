@@ -95,21 +95,45 @@ DP_PROVIDER='openai_compatible'
 # below), and walked against /v1/models on the fallback path. DEMO_MODEL, if set,
 # replaces all four (the old behaviour: one model everywhere).
 #
-# WHY THE 4.1 GENERATION AND NOT GPT-5. Verified by hand against this proxy on
-# 2026-08-03: these four answer, and the GPT-5 family does not. The reason is not
-# capability, it is one field — GPT-5 models reject `max_tokens` (they want
-# `max_completion_tokens`), and EVERY Atelier turn sends `max_tokens`
-# (`ChatCompleter`, `SymfonyAiReasoner`), which `OpenAiCompatibleAdapter` passes
-# through verbatim because that spelling IS the chat-completions shape. So a
-# gpt-5 id here would enumerate fine, bind fine, and 400 on the first real turn.
-# The same trap already caught this script's own vendor probe, which works
-# around it by sending no cap at all — a luxury the product does not have.
+# WHY DEEPSEEK FOR THE THREE CHAT TIERS (2026-08-06). Confirmed working by hand
+# on a live demo instance: `deepseek-v4-pro` for High thinking and
+# `deepseek-v4-flash` for Task/Fast completed real turns. That hand test is the
+# evidence that matters and this script cannot produce it — the vendor probe below
+# sends NO token cap, so a model answering the probe says nothing about whether it
+# accepts `max_tokens`, which every real Atelier turn sends. Only a turn through
+# the product tests that field. The ids are the proxy's own, read back from
+# /v1/models rather than guessed.
+# `deepseek-chat` trails each list as the fallback: it is the one deepseek id the
+# probe has repeatedly seen answer, so it is the safest second choice if the v4
+# ids are ever withdrawn.
+#
+# VISION IS DEEPSEEK TOO — a deliberate call, with the risk written down. The
+# `vision` role is the one tier the product refuses to infer: `InstallCapabilities`
+# lights the **Describe** chip only when vision is EXPLICITLY pinned, so that sight
+# is never promised from a guess. That makes this pin a claim, not a default: if
+# `deepseek-v4-flash` cannot read an image, the chip lights and alt text fails at
+# call time, which is the confidently-wrong shape the chip was built to prevent.
+# Chosen anyway, because the alternative was worse in practice — the vision-capable
+# vendors this proxy could serve are the two it cannot: anthropic 401s on every
+# model and gemini rate-limits its own probe.
+# `openai/gpt-4o` trails as the FALLBACK rather than another deepseek id, and that
+# ordering is the point: if the v4 id is ever withdrawn, vision must land on
+# something known to read images, not on `deepseek-chat`, which is no likelier to
+# be multimodal. **If alt text starts failing on the demo, this is the first line
+# to look at** — a Describe chip lit over a text-only model.
+#
+# WHY NOT GPT-5, still true and still the trap to know. GPT-5 models reject
+# `max_tokens` (they want `max_completion_tokens`), and every Atelier turn sends
+# `max_tokens` (`ChatCompleter`, `SymfonyAiReasoner`), which
+# `OpenAiCompatibleAdapter` passes through verbatim because that spelling IS the
+# chat-completions shape. A gpt-5 id here would enumerate fine, bind fine, and 400
+# on the first real turn.
 # Anthropic is deliberately absent: the probe below routinely finds no working
 # Anthropic credential on this host and excludes the whole vendor.
-DEMO_MODEL_REASONING="${DEMO_MODEL_REASONING:-${DEMO_MODEL:-openai/gpt-4.1,openai/gpt-4o}}"
-DEMO_MODEL_TASK="${DEMO_MODEL_TASK:-${DEMO_MODEL:-openai/gpt-4.1,openai/gpt-4o}}"
-DEMO_MODEL_FAST="${DEMO_MODEL_FAST:-${DEMO_MODEL:-openai/gpt-4.1-mini,openai/gpt-4.1}}"
-DEMO_MODEL_VISION="${DEMO_MODEL_VISION:-${DEMO_MODEL:-openai/gpt-4o,openai/gpt-4.1}}"
+DEMO_MODEL_REASONING="${DEMO_MODEL_REASONING:-${DEMO_MODEL:-deepseek/deepseek-v4-pro,deepseek/deepseek-chat}}"
+DEMO_MODEL_TASK="${DEMO_MODEL_TASK:-${DEMO_MODEL:-deepseek/deepseek-v4-flash,deepseek/deepseek-chat}}"
+DEMO_MODEL_FAST="${DEMO_MODEL_FAST:-${DEMO_MODEL:-deepseek/deepseek-v4-flash,deepseek/deepseek-chat}}"
+DEMO_MODEL_VISION="${DEMO_MODEL_VISION:-${DEMO_MODEL:-deepseek/deepseek-v4-flash,openai/gpt-4o}}"
 
 if [ -z "${DP_AI_VIRTUAL_KEY:-}" ]; then
   echo "wire-ai: DP_AI_VIRTUAL_KEY is unset — leaving the demo keyless (the onboarding wizard will show)."
