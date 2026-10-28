@@ -30,7 +30,7 @@ jobs:
     # `# syntax=` directive would fix heredoc handling but the action rejects one.
     # 159b15fa is the last green revision (plain `RUN docker-php-ext-install pgsql`).
     # Drop the pin back to @main once upstream is fixed.
-    uses: drupalforge/docker_publish_action/.github/workflows/docker-publish.yml@159b15facd78090c40dede82d6dfb118f76e233a
+    uses: drupalforge/docker_publish_action/.github/workflows/docker-publish.yml@main
     with:
       dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
       # PHP 8.4 to match the appliance image the tree is grafted from (the product
